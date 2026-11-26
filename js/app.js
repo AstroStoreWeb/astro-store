@@ -375,8 +375,19 @@ function renderHomeModule() {
   }
 }
 
+function normalizeExternalImageUrl(rawUrl) {
+  const url = String(rawUrl || '').trim();
+  if (!url || url.startsWith('data:')) return url;
+  // Convierte enlaces compartidos de Google Drive en enlace directo de imagen
+  const m1 = url.match(/drive\.google\.com\/file\/d\/([^/?#]+)/i);
+  if (m1) return `https://lh3.googleusercontent.com/d/${m1[1]}=w1000`;
+  const m2 = url.match(/drive\.google\.com\/(?:open|uc)\?[^#]*id=([^&#]+)/i);
+  if (m2) return `https://lh3.googleusercontent.com/d/${m2[1]}=w1000`;
+  return url;
+}
+
 function renderProjectCardHtml(p) {
-  const imgs = Array.isArray(p.images) ? p.images : [];
+  const imgs = (Array.isArray(p.images) ? p.images : []).map(normalizeExternalImageUrl);
   const tagsHtml = (p.tags || []).map(tag => `<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-800/90 text-indigo-300 border border-slate-700">${escapeHtml(tag)}</span>`).join('');
 
   const previewInner = imgs.length
@@ -521,7 +532,7 @@ function renderCatalogCardHtml(item) {
   const isSrv = item.type === 'servicio';
   const typeColor = isSrv ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' : 'bg-sky-500/20 text-sky-300 border-sky-500/30';
   const itemPlans = getAllowedPlansForItem(item);
-  const imgs = Array.isArray(item.images) ? item.images : [];
+  const imgs = (Array.isArray(item.images) ? item.images : []).map(normalizeExternalImageUrl);
 
   const previewInner = imgs.length
     ? `<img src="${imgs[0]}" alt="${escapeHtml(item.name)}" class="w-full h-full object-cover" />`
@@ -1480,6 +1491,12 @@ function handleSaveCatalogItem(e) {
     return;
   }
 
+  const pendingImgInput = document.getElementById('item-image-url-input');
+  if (pendingImgInput && pendingImgInput.value.trim()) {
+    STORE_STATE.draftItemImages.push(normalizeExternalImageUrl(pendingImgInput.value.trim()));
+    pendingImgInput.value = '';
+  }
+
   const data = {
     name: document.getElementById('item-name').value.trim(),
     salesCatalogId: document.getElementById('item-sales-catalog').value,
@@ -1910,6 +1927,12 @@ function renderAdminProjectsList() {
 
 function handleSaveProject(e) {
   e.preventDefault();
+  const pendingPrjImg = document.getElementById('prj-image-url-input');
+  if (pendingPrjImg && pendingPrjImg.value.trim()) {
+    STORE_STATE.draftProjectImages.push(normalizeExternalImageUrl(pendingPrjImg.value.trim()));
+    pendingPrjImg.value = '';
+  }
+
   const tagsRaw = document.getElementById('prj-tags').value.trim();
   const data = {
     title: document.getElementById('prj-title').value.trim(),
@@ -2022,8 +2045,9 @@ async function handleImageFilesUpload(e, target) {
 function handleAddImageUrl(target) {
   const inputId = target === 'item' ? 'item-image-url-input' : 'prj-image-url-input';
   const input = document.getElementById(inputId);
-  const url = input ? input.value.trim() : '';
-  if (!url) return;
+  const rawUrl = input ? input.value.trim() : '';
+  if (!rawUrl) return;
+  const url = normalizeExternalImageUrl(rawUrl);
   const arr = target === 'item' ? STORE_STATE.draftItemImages : STORE_STATE.draftProjectImages;
   arr.push(url);
   input.value = '';
@@ -2053,7 +2077,7 @@ function renderDraftImagesPreview(target) {
 }
 
 function renderModalGalleryHtml(images, title) {
-  const imgs = Array.isArray(images) ? images : [];
+  const imgs = (Array.isArray(images) ? images : []).map(normalizeExternalImageUrl);
   if (!imgs.length) return '';
   STORE_STATE.galleryImages = imgs;
   STORE_STATE.galleryIndex = 0;
