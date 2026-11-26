@@ -391,7 +391,8 @@ function renderProjectCardHtml(p) {
   const tagsHtml = (p.tags || []).map(tag => `<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-800/90 text-indigo-300 border border-slate-700">${escapeHtml(tag)}</span>`).join('');
 
   const previewInner = imgs.length
-    ? `<img src="${imgs[0]}" alt="${escapeHtml(p.title)}" class="w-full h-full object-cover" />`
+    ? `<img src="${imgs[0]}" alt="" aria-hidden="true" class="chilly-card-img-bg" />
+       <img src="${imgs[0]}" alt="${escapeHtml(p.title)}" class="chilly-card-img-fg" />`
     : `<div class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-indigo-950/60 p-4 text-center">
          <i data-lucide="briefcase" class="w-8 h-8 text-indigo-400 mb-2"></i>
          <span class="text-xs font-bold text-slate-200 line-clamp-2">${escapeHtml(p.summary)}</span>
@@ -408,10 +409,7 @@ function renderProjectCardHtml(p) {
           </div>
         </div>
         ${previewInner}
-        <div class="absolute bottom-2 left-2 flex gap-1.5 z-10">
-          <span class="px-2 py-0.5 rounded-md bg-slate-950/85 text-[10px] font-bold text-emerald-300 border border-white/10">${escapeHtml(p.status)} · ${escapeHtml(p.year)}</span>
-          ${imgs.length > 1 ? `<span class="px-2 py-0.5 rounded-md bg-slate-950/85 text-[10px] font-bold text-white border border-white/10">${imgs.length} fotos</span>` : ''}
-        </div>
+        ${imgs.length > 1 ? `<span class="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-md bg-slate-950/85 text-[10px] font-bold text-white border border-white/10">${imgs.length} fotos</span>` : ''}
       </div>
 
       <div class="chilly-data">
@@ -419,6 +417,9 @@ function renderProjectCardHtml(p) {
           <i data-lucide="briefcase" class="w-5 h-5"></i>
         </div>
         <div class="chilly-text">
+          <div class="flex flex-wrap gap-1 mb-1">
+            <span class="px-2 py-0.5 rounded-md bg-slate-950/85 text-[10px] font-bold text-emerald-300 border border-white/10">${escapeHtml(p.status)} · ${escapeHtml(p.year)}</span>
+          </div>
           <div class="chilly-text-m truncate">${escapeHtml(p.title)}</div>
           <div class="chilly-text-s truncate">${escapeHtml(p.category)} · Cliente: ${escapeHtml(p.client)}</div>
           ${tagsHtml ? `<div class="flex flex-wrap gap-1 mt-1.5">${tagsHtml}</div>` : ''}
@@ -535,7 +536,8 @@ function renderCatalogCardHtml(item) {
   const imgs = (Array.isArray(item.images) ? item.images : []).map(normalizeExternalImageUrl);
 
   const previewInner = imgs.length
-    ? `<img src="${imgs[0]}" alt="${escapeHtml(item.name)}" class="w-full h-full object-cover" />`
+    ? `<img src="${imgs[0]}" alt="" aria-hidden="true" class="chilly-card-img-bg" />
+       <img src="${imgs[0]}" alt="${escapeHtml(item.name)}" class="chilly-card-img-fg" />`
     : `<div class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-sky-950/60 p-4 text-center">
          <i data-lucide="${escapeHtml(item.icon || 'shopping-bag')}" class="w-9 h-9 text-sky-400 mb-2"></i>
          <span class="text-xs text-slate-300 line-clamp-2">${escapeHtml(item.description)}</span>
@@ -556,11 +558,7 @@ function renderCatalogCardHtml(item) {
           </div>
         </div>
         ${previewInner}
-        <div class="absolute bottom-2 left-2 flex flex-wrap gap-1.5 z-10">
-          <span class="px-2 py-0.5 rounded-md bg-slate-950/85 text-[10px] font-bold border ${typeColor}">${isSrv ? 'Servicio' : 'Producto'} · ${escapeHtml(item.category)}</span>
-          ${item.badge ? `<span class="px-2 py-0.5 rounded-md bg-slate-950/85 text-[10px] font-bold text-emerald-300 border border-emerald-500/30">${escapeHtml(item.badge)}</span>` : ''}
-          ${imgs.length > 1 ? `<span class="px-2 py-0.5 rounded-md bg-slate-950/85 text-[10px] font-bold text-white border border-white/10">${imgs.length} fotos</span>` : ''}
-        </div>
+        ${imgs.length > 1 ? `<span class="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-md bg-slate-950/85 text-[10px] font-bold text-white border border-white/10">${imgs.length} fotos</span>` : ''}
       </div>
 
       <div class="chilly-data">
@@ -568,6 +566,10 @@ function renderCatalogCardHtml(item) {
           <i data-lucide="${escapeHtml(item.icon || 'shopping-bag')}" class="w-5 h-5"></i>
         </div>
         <div class="chilly-text">
+          <div class="flex flex-wrap gap-1 mb-1">
+            <span class="px-2 py-0.5 rounded-md bg-slate-950/85 text-[10px] font-bold border ${typeColor}">${isSrv ? 'Servicio' : 'Producto'} · ${escapeHtml(item.category)}</span>
+            ${item.badge ? `<span class="px-2 py-0.5 rounded-md bg-slate-950/85 text-[10px] font-bold text-emerald-300 border border-emerald-500/30">${escapeHtml(item.badge)}</span>` : ''}
+          </div>
           <div class="chilly-text-m truncate">${escapeHtml(item.name)}</div>
           <div class="flex flex-wrap items-center gap-2 mt-0.5">
             <span class="text-sm font-extrabold text-emerald-400">${escapeHtml(cfg.currencySymbol)}${item.price}</span>
@@ -2084,18 +2086,23 @@ function renderModalGalleryHtml(images, title) {
 
   return `
     <div class="space-y-2.5">
-      <div class="relative h-64 sm:h-72 rounded-2xl overflow-hidden bg-slate-900 border border-slate-800">
-        <img id="modal-gallery-main" src="${imgs[0]}" alt="${escapeHtml(title)}" class="w-full h-full object-contain" />
+      <div class="relative rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center p-2 sm:p-3">
+        <img id="modal-gallery-bg" src="${imgs[0]}" alt="" aria-hidden="true" class="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-35 pointer-events-none" />
+        <img id="modal-gallery-main" src="${imgs[0]}" alt="${escapeHtml(title)}" onclick="window.open(this.src, '_blank', 'noopener')" title="Toca o haz clic para ver en tamaño completo" class="relative z-10 w-auto max-w-full max-h-[72vh] h-auto object-contain rounded-xl shadow-2xl cursor-zoom-in mx-auto block" />
+        <a id="modal-gallery-open" href="${imgs[0]}" target="_blank" rel="noopener" class="absolute bottom-3 right-3 z-20 px-2.5 py-1 rounded-lg bg-slate-950/80 hover:bg-slate-900 text-[11px] font-semibold text-sky-300 border border-white/15 backdrop-blur-sm flex items-center gap-1">
+          <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
+          <span>Tamaño real</span>
+        </a>
         ${imgs.length > 1 ? `
-          <button type="button" onclick="stepModalGallery(-1)" class="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-slate-950/75 hover:bg-slate-900 text-white flex items-center justify-center border border-white/15">&lsaquo;</button>
-          <button type="button" onclick="stepModalGallery(1)" class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-slate-950/75 hover:bg-slate-900 text-white flex items-center justify-center border border-white/15">&rsaquo;</button>
+          <button type="button" onclick="stepModalGallery(-1)" class="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-slate-950/75 hover:bg-slate-900 text-white flex items-center justify-center border border-white/15">&lsaquo;</button>
+          <button type="button" onclick="stepModalGallery(1)" class="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-slate-950/75 hover:bg-slate-900 text-white flex items-center justify-center border border-white/15">&rsaquo;</button>
         ` : ''}
       </div>
       ${imgs.length > 1 ? `
         <div class="flex gap-2 overflow-x-auto hover-scroll-x pb-1">
           ${imgs.map((src, i) => `
-            <button type="button" onclick="setModalGalleryIndex(${i})" class="w-16 h-16 rounded-xl overflow-hidden border-2 shrink-0 transition ${i === 0 ? 'border-sky-400' : 'border-slate-800 opacity-70 hover:opacity-100'}" id="gal-thumb-${i}">
-              <img src="${src}" class="w-full h-full object-cover" />
+            <button type="button" onclick="setModalGalleryIndex(${i})" class="w-16 h-16 rounded-xl overflow-hidden border-2 shrink-0 transition bg-slate-950 ${i === 0 ? 'border-sky-400' : 'border-slate-800 opacity-70 hover:opacity-100'}" id="gal-thumb-${i}">
+              <img src="${src}" class="w-full h-full object-contain" />
             </button>
           `).join('')}
         </div>
@@ -2108,11 +2115,16 @@ function setModalGalleryIndex(idx) {
   const imgs = STORE_STATE.galleryImages;
   if (!imgs.length) return;
   STORE_STATE.galleryIndex = (idx + imgs.length) % imgs.length;
+  const currentSrc = imgs[STORE_STATE.galleryIndex];
   const main = document.getElementById('modal-gallery-main');
-  if (main) main.src = imgs[STORE_STATE.galleryIndex];
+  const bg = document.getElementById('modal-gallery-bg');
+  const openLink = document.getElementById('modal-gallery-open');
+  if (main) main.src = currentSrc;
+  if (bg) bg.src = currentSrc;
+  if (openLink) openLink.href = currentSrc;
   imgs.forEach((_, i) => {
     const th = document.getElementById(`gal-thumb-${i}`);
-    if (th) th.className = `w-16 h-16 rounded-xl overflow-hidden border-2 shrink-0 transition ${i === STORE_STATE.galleryIndex ? 'border-sky-400' : 'border-slate-800 opacity-70 hover:opacity-100'}`;
+    if (th) th.className = `w-16 h-16 rounded-xl overflow-hidden border-2 shrink-0 transition bg-slate-950 ${i === STORE_STATE.galleryIndex ? 'border-sky-400' : 'border-slate-800 opacity-70 hover:opacity-100'}`;
   });
 }
 
