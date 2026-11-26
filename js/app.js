@@ -10,6 +10,7 @@ const STORE_STATE = {
   editingItemId: null,
   editingProjectId: null,
   editingJobId: null,
+  editingSponsorId: null,
   draftItemImages: [],
   draftProjectImages: [],
   draftJobDeliverables: [],
@@ -46,6 +47,121 @@ const STORE_STATE = {
   bcvRates: { usd: 46.85, eur: 50.60, updatedAt: null, isLive: false, source: 'Caché local' }
 };
 
+const PURCHASE_MODE_META = {
+  unidad: { label: 'Por Unidad', qtyLabel: 'Cantidad de unidades', placeholder: 'Ej. Unidad individual, 1 pieza...' },
+  cantidad: { label: 'Por Cantidad', qtyLabel: 'Cantidad deseada', placeholder: 'Ej. Mín. 5 uds, Al mayor desde 10...' },
+  lote: { label: 'Por Lote / Paquete', qtyLabel: 'Cantidad de lotes / paquetes', placeholder: 'Ej. Lote de 12, Caja x24, Pack x6...' },
+  suscripcion: { label: 'Suscripción', qtyLabel: 'Plan o duración deseada', placeholder: 'Ej. Mensual, Trimestral, Anual...' },
+  servicio: { label: 'Por Proyecto / Servicio', qtyLabel: 'Alcance o cantidad', placeholder: 'Ej. Pago único, Por proyecto...' },
+  membresia: { label: 'Membresía / Plan Socio', qtyLabel: 'Tipo de plan / duración', placeholder: 'Ej. Mensual, Plan VIP, Socio Activo...' },
+  cotizacion: { label: 'Bajo Cotización', qtyLabel: 'Cantidad o detalles requeridos', placeholder: 'Ej. A medida según requerimiento...' },
+  personalizado: { label: 'Personalizada', qtyLabel: 'Cantidad o especificación', placeholder: 'Ej. Por kilo, Por horas, Por combo...' },
+  mencion: { label: 'Socio / Aliado', qtyLabel: 'Consulta o requerimiento', placeholder: 'Ej. Beneficio o detalle del socio...' }
+};
+
+function hasFixedPrice(entity) {
+  if (!entity || entity.priceOnRequest) return false;
+  return entity.price !== null && entity.price !== undefined && entity.price !== '' && Number.isFinite(Number(entity.price));
+}
+
+function formatPurchaseModeLabel(mode, detail = '') {
+  const cleanDetail = String(detail || '').trim();
+  if (!mode || mode === 'mencion') return cleanDetail;
+  const meta = PURCHASE_MODE_META[mode];
+  const base = meta ? meta.label : mode;
+  return cleanDetail ? `${base} · ${cleanDetail}` : base;
+}
+
+function togglePriceOnRequest(prefix) {
+  const cb = document.getElementById(`${prefix}-price-on-request`);
+  const priceInput = document.getElementById(`${prefix}-price`);
+  if (!cb || !priceInput) return;
+  if (cb.checked) {
+    priceInput.value = '';
+    priceInput.disabled = true;
+    priceInput.classList.add('opacity-50');
+  } else {
+    priceInput.disabled = false;
+    priceInput.classList.remove('opacity-50');
+  }
+}
+
+function syncPriceOnRequestState(prefix) {
+  const cb = document.getElementById(`${prefix}-price-on-request`);
+  const priceInput = document.getElementById(`${prefix}-price`);
+  if (!cb || !priceInput) return;
+  if (priceInput.value.trim() !== '') {
+    cb.checked = false;
+    priceInput.disabled = false;
+    priceInput.classList.remove('opacity-50');
+  }
+}
+
+function updatePurchaseDetailPlaceholder(prefix) {
+  const modeEl = document.getElementById(`${prefix}-purchase-mode`);
+  const detailEl = document.getElementById(`${prefix}-purchase-detail`);
+  if (!modeEl || !detailEl) return;
+  const meta = PURCHASE_MODE_META[modeEl.value];
+  if (meta && meta.placeholder) detailEl.placeholder = meta.placeholder;
+}
+
+function isUserInteractingWithForm() {
+  const el = document.activeElement;
+  if (el) {
+    const tag = el.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable) {
+      return true;
+    }
+  }
+  const modal = document.getElementById('item-detail-modal');
+  if (modal && !modal.classList.contains('hidden')) return true;
+  return false;
+}
+
+function hasFormInputActivityIn(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return false;
+  const active = document.activeElement;
+  if (active && container.contains(active) && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)) {
+    return true;
+  }
+  const fields = container.querySelectorAll('input[type="text"], input[type="number"], input[type="url"], textarea');
+  for (const f of fields) {
+    if (f.value && f.value.trim().length > 0 && f.id !== 'pasarela-coupon-input') {
+      return true;
+    }
+  }
+  return false;
+}
+
+function setupMobileKeyboardListeners() {
+  let blurTimer = null;
+  document.addEventListener('focusin', ev => {
+    if (window.innerWidth >= 1024) return;
+    const t = ev.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) {
+      if (t.type === 'checkbox' || t.type === 'radio' || t.type === 'file') return;
+      clearTimeout(blurTimer);
+      document.body.classList.add('keyboard-open');
+    }
+  });
+  document.addEventListener('focusout', () => {
+    clearTimeout(blurTimer);
+    blurTimer = setTimeout(() => {
+      const a = document.activeElement;
+      const stillEditing = a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable) && !['checkbox', 'radio', 'file'].includes(a.type);
+      if (!stillEditing) document.body.classList.remove('keyboard-open');
+    }, 150);
+  });
+}
+
+function scrollToCardForm(elementId) {
+  const el = document.getElementById(elementId);
+  if (el && typeof el.scrollIntoView === 'function') {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
 function initStore() {
   STORE_STATE.config = loadStoreConfig();
   STORE_STATE.catalog = loadCatalogItems();
@@ -61,21 +177,24 @@ function initStore() {
   STORE_STATE.bcvRates = loadCachedBcvRates();
   STORE_STATE.isAdminAuthenticated = sessionStorage.getItem(STORE_STORAGE_KEYS.ADMIN_AUTH) === 'true';
   loadCartFromStorage();
+  setupMobileKeyboardListeners();
 
   switchView(resolveViewFromURL(), false);
   syncBcvRates(false);
   checkCustomerPaymentStatus(false);
 
-  // Sincronizar con Supabase al iniciar (si está configurado)
+  // Sincronizar con Supabase al iniciar SIN resetear scroll ni interrumpir escritura
   if (window.storeCloud && window.storeCloud.isConnected) {
-    syncAllFromSupabase(false);
+    syncAllFromSupabase(false, { preserveScroll: true, preserveForms: true });
   }
 
-  // Polling ligero cada 8s cuando el cliente espera confirmación de pago en la nube
+  // Polling ligero cada 8s SOLO en vista pública cuando el cliente espera confirmación y no está escribiendo
   setInterval(() => {
+    if (STORE_STATE.currentView !== 'public') return;
+    if (isUserInteractingWithForm()) return;
     const lastPay = loadFromStorage(STORE_STORAGE_KEYS.LAST_CUSTOMER_PAYMENT, null);
     if (lastPay && lastPay.reportId && !lastPay.notifiedConfirmed && window.storeCloud && window.storeCloud.isConnected) {
-      syncAllFromSupabase(false);
+      syncAllFromSupabase(false, { preserveScroll: true, preserveForms: true, onlyPaymentCheck: true });
     }
   }, 8000);
 
@@ -85,8 +204,12 @@ function initStore() {
       STORE_STATE.paymentReports = loadPaymentReports();
       STORE_STATE.activeJobs = loadActiveJobs();
       if (STORE_STATE.currentView === 'public') {
-        if (STORE_STATE.publicTab === 'pasarela') renderPasarelaModule();
-        if (STORE_STATE.publicTab === 'trabajos') renderTrabajosModule();
+        if (STORE_STATE.publicTab === 'pasarela' && !hasFormInputActivityIn('pasarela-content-container')) {
+          renderPasarelaModule();
+        }
+        if (STORE_STATE.publicTab === 'trabajos' && !isUserInteractingWithForm()) {
+          renderTrabajosModule();
+        }
         checkCustomerPaymentStatus(false);
       }
     }
@@ -98,10 +221,21 @@ async function syncBcvRates(showFeedback = false) {
   STORE_STATE.bcvRates = updated;
 
   if (STORE_STATE.currentView === 'public') {
-    if (STORE_STATE.publicTab === 'inicio') renderHomeModule();
+    const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setTxt('bento-bcv-usd', `Bs. ${Number(updated.usd).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+    setTxt('bento-bcv-eur', `Bs. ${Number(updated.eur).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+    const updatedText = updated.updatedAt
+      ? `Actualizado: ${new Date(updated.updatedAt).toLocaleDateString('es-VE', { day: '2-digit', month: 'short' })} · ${updated.source}`
+      : updated.source;
+    setTxt('bento-bcv-updated', updatedText);
+
     if (STORE_STATE.publicTab === 'catalogo') renderCatalog();
-    if (STORE_STATE.publicTab === 'pasarela') renderPasarelaModule();
-    renderCart();
+    if (STORE_STATE.publicTab === 'pasarela' && !hasFormInputActivityIn('pasarela-content-container')) {
+      renderPasarelaModule();
+    }
+    if (!hasFormInputActivityIn('cart-drawer')) {
+      renderCart();
+    }
     if (window.lucide) window.lucide.createIcons();
   }
 
@@ -117,8 +251,12 @@ function resolveViewFromURL() {
 }
 
 function resetScrollArea() {
-  const area = document.getElementById('main-scroll-area');
-  if (area) area.scrollTop = 0;
+  if (window.innerWidth >= 1024) {
+    const area = document.getElementById('main-scroll-area');
+    if (area) area.scrollTop = 0;
+  } else {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }
 }
 
 // --- CAMBIO ENTRE VISTA PÚBLICA Y VISTA ADMIN (ARCHIVOS SEPARADOS) ---
@@ -138,7 +276,7 @@ function switchView(viewName, updateUrl = true) {
   if (searchEl) searchEl.classList.toggle('hidden', viewName !== 'public');
 
   if (viewName === 'public') {
-    switchPublicTab(STORE_STATE.publicTab);
+    switchPublicTab(STORE_STATE.publicTab, null, true);
   } else {
     renderAdminView();
   }
@@ -147,7 +285,7 @@ function switchView(viewName, updateUrl = true) {
 }
 
 // --- CAMBIO DE MÓDULO INDEPENDIENTE EN VISTA PÚBLICA (SIN BAJAR CON SCROLL) ---
-function switchPublicTab(tabName, filterOverride = null) {
+function switchPublicTab(tabName, filterOverride = null, shouldResetScroll = true) {
   STORE_STATE.publicTab = tabName;
   if (filterOverride) STORE_STATE.filterType = filterOverride;
 
@@ -171,7 +309,7 @@ function switchPublicTab(tabName, filterOverride = null) {
   if (tabName === 'contacto') renderContactoModule();
 
   renderCart();
-  resetScrollArea();
+  if (shouldResetScroll) resetScrollArea();
   if (window.lucide) window.lucide.createIcons();
 }
 
@@ -362,16 +500,57 @@ function renderHomeModule() {
   const spnGrid = document.getElementById('home-sponsors-grid');
   if (spnSec && spnGrid) {
     spnSec.classList.toggle('hidden', STORE_STATE.sponsors.length === 0);
-    spnGrid.innerHTML = STORE_STATE.sponsors.map(s => `
-      <div class="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 flex items-start justify-between gap-3">
-        <div class="min-w-0">
-          <div class="text-[10px] font-bold uppercase tracking-wider text-amber-300">${escapeHtml(s.role)}</div>
-          <div class="font-bold text-white text-sm truncate mt-0.5">${escapeHtml(s.name)}</div>
-          <p class="text-xs text-slate-400 mt-1 leading-snug">${escapeHtml(s.description)}</p>
+    const sym = STORE_STATE.config.currencySymbol;
+    spnGrid.innerHTML = STORE_STATE.sponsors.map(s => {
+      const modeLabel = formatPurchaseModeLabel(s.purchaseMode, s.purchaseDetail);
+      const priced = hasFixedPrice(s);
+      const imgSrc = s.imageUrl ? normalizeExternalImageUrl(s.imageUrl) : '';
+      const showQuoteBtn = s.allowQuote !== false || !priced || (s.purchaseMode && s.purchaseMode !== 'mencion');
+
+      return `
+        <div class="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-amber-500/35 transition flex flex-col justify-between gap-3">
+          <div class="space-y-2">
+            <div class="flex items-start gap-3">
+              ${imgSrc ? `<img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(s.name)}" class="w-11 h-11 rounded-xl object-cover border border-slate-700 shrink-0" />` : `
+                <div class="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
+                  <i data-lucide="award" class="w-5 h-5"></i>
+                </div>
+              `}
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-amber-300">${escapeHtml(s.role)}</span>
+                  ${modeLabel ? `<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">${escapeHtml(modeLabel)}</span>` : ''}
+                </div>
+                <div class="font-bold text-white text-sm truncate mt-0.5">${escapeHtml(s.name)}</div>
+              </div>
+            </div>
+
+            <p class="text-xs text-slate-300 leading-snug">${escapeHtml(s.description)}</p>
+
+            ${priced ? `
+              <div class="flex flex-wrap items-baseline gap-2 pt-0.5">
+                <span class="text-sm font-extrabold text-emerald-400">${escapeHtml(sym)}${Number(s.price).toFixed(2)}</span>
+                <span class="text-[11px] font-semibold text-sky-300">&approx; ${formatBs(s.price, rates?.usd)}</span>
+              </div>
+            ` : (s.purchaseMode && s.purchaseMode !== 'mencion' ? `
+              <div class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-[11px] font-bold text-amber-300">
+                <span>Precio a consultar / Cotizar</span>
+              </div>
+            ` : '')}
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/80">
+            ${s.url ? `<a href="${escapeHtml(s.url)}" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-bold transition">Visitar</a>` : ''}
+            ${showQuoteBtn ? `
+              <button type="button" onclick="openQuoteModal('sponsor', '${s.id}')" class="flex-1 px-3 py-1.5 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-slate-950 text-xs font-extrabold transition flex items-center justify-center gap-1.5">
+                <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>
+                <span>${priced ? 'Pedir Info / Adquirir' : 'Pedir Info / Cotizar'}</span>
+              </button>
+            ` : ''}
+          </div>
         </div>
-        ${s.url ? `<a href="${escapeHtml(s.url)}" target="_blank" rel="noopener" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 text-[11px] font-bold shrink-0">Visitar</a>` : ''}
-      </div>
-    `).join('');
+      `;
+    }).join('');
   }
 }
 
@@ -419,9 +598,11 @@ function renderProjectCardHtml(p) {
         <div class="chilly-text">
           <div class="flex flex-wrap gap-1 mb-1">
             <span class="px-2 py-0.5 rounded-md bg-slate-950/85 text-[10px] font-bold text-emerald-300 border border-white/10">${escapeHtml(p.status)} · ${escapeHtml(p.year)}</span>
+            ${formatPurchaseModeLabel(p.purchaseMode, p.purchaseDetail) ? `<span class="px-2 py-0.5 rounded-md bg-indigo-500/20 text-[10px] font-bold text-indigo-300 border border-indigo-500/30">${escapeHtml(formatPurchaseModeLabel(p.purchaseMode, p.purchaseDetail))}</span>` : ''}
           </div>
           <div class="chilly-text-m truncate">${escapeHtml(p.title)}</div>
           <div class="chilly-text-s truncate">${escapeHtml(p.category)} · Cliente: ${escapeHtml(p.client)}</div>
+          ${hasFixedPrice(p) ? `<div class="text-xs font-extrabold text-emerald-400 mt-0.5">Ref. ${escapeHtml(STORE_STATE.config.currencySymbol)}${Number(p.price).toFixed(2)}</div>` : ''}
           ${tagsHtml ? `<div class="flex flex-wrap gap-1 mt-1.5">${tagsHtml}</div>` : ''}
         </div>
       </div>
@@ -430,6 +611,10 @@ function renderProjectCardHtml(p) {
         <button onclick="openProjectDetailModal('${p.id}')" class="chilly-pill-btn">
           <i data-lucide="eye" class="w-3.5 h-3.5 text-sky-400"></i>
           <span>Ver Detalle</span>
+        </button>
+        <button onclick="openQuoteModal('project', '${p.id}')" class="chilly-pill-btn !bg-[#25D366] hover:!bg-[#1ebe5d] !text-slate-950">
+          <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>
+          <span>Cotizar</span>
         </button>
         ${p.url ? `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener" class="chilly-pill-btn !bg-indigo-600 hover:!bg-indigo-500">Demo</a>` : ''}
       </div>
@@ -534,6 +719,8 @@ function renderCatalogCardHtml(item) {
   const typeColor = isSrv ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' : 'bg-sky-500/20 text-sky-300 border-sky-500/30';
   const itemPlans = getAllowedPlansForItem(item);
   const imgs = (Array.isArray(item.images) ? item.images : []).map(normalizeExternalImageUrl);
+  const priced = hasFixedPrice(item);
+  const modeLabel = formatPurchaseModeLabel(item.purchaseMode, item.purchaseDetail);
 
   const previewInner = imgs.length
     ? `<img src="${imgs[0]}" alt="" aria-hidden="true" class="chilly-card-img-bg" />
@@ -543,9 +730,43 @@ function renderCatalogCardHtml(item) {
          <span class="text-xs text-slate-300 line-clamp-2">${escapeHtml(item.description)}</span>
        </div>`;
 
-  const plansPills = itemPlans.length
-    ? itemPlans.map(p => `<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-800/90 text-sky-300 border border-slate-700">${escapeHtml(p.name)}</span>`).join('')
-    : `<span class="text-[10px] text-amber-300">Consultar modalidad</span>`;
+  const plansPills = priced
+    ? (itemPlans.length
+        ? itemPlans.map(p => `<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-800/90 text-sky-300 border border-slate-700">${escapeHtml(p.name)}</span>`).join('')
+        : `<span class="text-[10px] text-amber-300">Consultar modalidad</span>`)
+    : `<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Cotización / Info por WhatsApp</span>`;
+
+  const priceBlock = priced
+    ? `<div class="flex flex-wrap items-center gap-2 mt-0.5">
+         <span class="text-sm font-extrabold text-emerald-400">${escapeHtml(cfg.currencySymbol)}${Number(item.price).toFixed(2)}</span>
+         <span class="text-[11px] font-semibold text-sky-300">&approx; ${formatBs(item.price, STORE_STATE.bcvRates?.usd)}</span>
+       </div>`
+    : `<div class="flex flex-wrap items-center gap-1.5 mt-1">
+         <span class="px-2 py-0.5 rounded-md text-[11px] font-extrabold bg-amber-500/15 text-amber-300 border border-amber-500/30">Precio a consultar</span>
+       </div>`;
+
+  const actionBtns = priced
+    ? `<button onclick="openItemDetailModal('${item.id}')" class="chilly-pill-btn">
+         <i data-lucide="eye" class="w-3.5 h-3.5 text-sky-400"></i>
+         <span>Detalle</span>
+       </button>
+       <button onclick="addToCart('${item.id}', this)" title="Agregar al carrito" class="uiverse-add-btn" aria-label="Agregar al carrito">
+         <svg class="uiverse-add-icon" viewBox="0 0 576 512">
+           <path d="M0 24C0 10.7 10.7 0 24 0H69.5c22 0 41.5 12.8 50.6 32h411c26.3 0 45.5 25 38.6 50.4l-41 152.3c-8.5 31.4-37 53.3-69.5 53.3H170.7l5.4 28.5c2.2 11.3 12.1 19.5 23.6 19.5H488c13.3 0 24 10.7 24 24s-10.7 24-24 24H199.7c-34.6 0-64.3-24.6-70.7-58.5L77.4 54.5c-.7-3.8-4-6.5-7.9-6.5H24C10.7 48 0 37.3 0 24zM128 464a48 48 0 1 1 96 0 48 48 0 1 1 -96 0zm336-48a48 48 0 1 1 0 96 48 48 0 1 1 0-96zM252 160c0 11 9 20 20 20h44v44c0 11 9 20 20 20s20-9 20-20V180h44c11 0 20-9 20-20s-9-20-20-20H356V96c0-11-9-20-20-20s-20 9-20 20v44H272c-11 0-20 9-20 20z"></path>
+         </svg>
+       </button>
+       <button onclick="openPasarelaForItem('${item.id}')" class="chilly-pill-btn !bg-sky-600 hover:!bg-sky-500 flex-1">
+         <i data-lucide="wallet" class="w-3.5 h-3.5"></i>
+         <span>Adquirir</span>
+       </button>`
+    : `<button onclick="openItemDetailModal('${item.id}')" class="chilly-pill-btn">
+         <i data-lucide="eye" class="w-3.5 h-3.5 text-sky-400"></i>
+         <span>Detalle</span>
+       </button>
+       <button onclick="openQuoteModal('catalog', '${item.id}')" class="chilly-pill-btn !bg-[#25D366] hover:!bg-[#1ebe5d] !text-slate-950 flex-1">
+         <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>
+         <span>Pedir Info / Cotizar</span>
+       </button>`;
 
   return `
     <article class="chilly-main">
@@ -568,32 +789,18 @@ function renderCatalogCardHtml(item) {
         <div class="chilly-text">
           <div class="flex flex-wrap gap-1 mb-1">
             <span class="px-2 py-0.5 rounded-md bg-slate-950/85 text-[10px] font-bold border ${typeColor}">${isSrv ? 'Servicio' : 'Producto'} · ${escapeHtml(item.category)}</span>
+            ${modeLabel ? `<span class="px-2 py-0.5 rounded-md bg-purple-500/20 text-[10px] font-bold text-purple-200 border border-purple-500/30">${escapeHtml(modeLabel)}</span>` : ''}
             ${item.badge ? `<span class="px-2 py-0.5 rounded-md bg-slate-950/85 text-[10px] font-bold text-emerald-300 border border-emerald-500/30">${escapeHtml(item.badge)}</span>` : ''}
           </div>
           <div class="chilly-text-m truncate">${escapeHtml(item.name)}</div>
-          <div class="flex flex-wrap items-center gap-2 mt-0.5">
-            <span class="text-sm font-extrabold text-emerald-400">${escapeHtml(cfg.currencySymbol)}${item.price}</span>
-            <span class="text-[11px] font-semibold text-sky-300">&approx; ${formatBs(item.price, STORE_STATE.bcvRates?.usd)}</span>
-          </div>
+          ${priceBlock}
           <div class="chilly-text-s truncate mt-0.5">${escapeHtml(getSalesCatalogName(item.salesCatalogId))}</div>
           <div class="flex flex-wrap gap-1 mt-1.5">${plansPills}</div>
         </div>
       </div>
 
       <div class="chilly-btns">
-        <button onclick="openItemDetailModal('${item.id}')" class="chilly-pill-btn">
-          <i data-lucide="eye" class="w-3.5 h-3.5 text-sky-400"></i>
-          <span>Detalle</span>
-        </button>
-        <button onclick="addToCart('${item.id}', this)" title="Agregar al carrito" class="uiverse-add-btn" aria-label="Agregar al carrito">
-          <svg class="uiverse-add-icon" viewBox="0 0 576 512">
-            <path d="M0 24C0 10.7 10.7 0 24 0H69.5c22 0 41.5 12.8 50.6 32h411c26.3 0 45.5 25 38.6 50.4l-41 152.3c-8.5 31.4-37 53.3-69.5 53.3H170.7l5.4 28.5c2.2 11.3 12.1 19.5 23.6 19.5H488c13.3 0 24 10.7 24 24s-10.7 24-24 24H199.7c-34.6 0-64.3-24.6-70.7-58.5L77.4 54.5c-.7-3.8-4-6.5-7.9-6.5H24C10.7 48 0 37.3 0 24zM128 464a48 48 0 1 1 96 0 48 48 0 1 1 -96 0zm336-48a48 48 0 1 1 0 96 48 48 0 1 1 0-96zM252 160c0 11 9 20 20 20h44v44c0 11 9 20 20 20s20-9 20-20V180h44c11 0 20-9 20-20s-9-20-20-20H356V96c0-11-9-20-20-20s-20 9-20 20v44H272c-11 0-20 9-20 20z"></path>
-          </svg>
-        </button>
-        <button onclick="openPasarelaForItem('${item.id}')" class="chilly-pill-btn !bg-sky-600 hover:!bg-sky-500 flex-1">
-          <i data-lucide="wallet" class="w-3.5 h-3.5"></i>
-          <span>Adquirir</span>
-        </button>
+        ${actionBtns}
       </div>
     </article>
   `;
@@ -643,6 +850,10 @@ function toggleCartDrawer() {
 function addToCart(itemId, btnEl = null) {
   const item = STORE_STATE.catalog.find(i => i.id === itemId);
   if (!item) return;
+  if (!hasFixedPrice(item)) {
+    openQuoteModal('catalog', item.id);
+    return;
+  }
 
   if (btnEl) {
     btnEl.classList.add('is-animating');
@@ -651,7 +862,15 @@ function addToCart(itemId, btnEl = null) {
 
   const existing = STORE_STATE.cart.find(c => c.id === itemId);
   if (existing) existing.qty += 1;
-  else STORE_STATE.cart.push({ id: item.id, name: item.name, price: Number(item.price), type: item.type, qty: 1 });
+  else STORE_STATE.cart.push({
+    id: item.id,
+    name: item.name,
+    price: Number(item.price),
+    type: item.type,
+    purchaseMode: item.purchaseMode || 'unidad',
+    purchaseDetail: item.purchaseDetail || '',
+    qty: 1
+  });
   saveCartToStorage();
   renderCart();
   showToast(`"${item.name}" agregado al carrito`);
@@ -786,7 +1005,7 @@ function renderCart() {
         </div>
         <div class="min-w-0">
           <span class="wb-prod-name truncate">${escapeHtml(i.name)}</span>
-          <p class="wb-prod-meta">${i.type === 'servicio' ? 'Servicio' : 'Producto'} · ${escapeHtml(sym)}${i.price} c/u</p>
+          <p class="wb-prod-meta">${i.type === 'servicio' ? 'Servicio' : 'Producto'}${formatPurchaseModeLabel(i.purchaseMode, i.purchaseDetail) ? ` · ${escapeHtml(formatPurchaseModeLabel(i.purchaseMode, i.purchaseDetail))}` : ''} · ${escapeHtml(sym)}${Number(i.price).toFixed(2)} c/u</p>
         </div>
         <div class="wb-quantity">
           <button onclick="updateCartQty('${i.id}', -1)" aria-label="Restar">
@@ -816,8 +1035,20 @@ function renderCart() {
 function openPasarelaForItem(itemId) {
   const item = STORE_STATE.catalog.find(i => i.id === itemId);
   if (!item) return;
+  if (!hasFixedPrice(item)) {
+    openQuoteModal('catalog', item.id);
+    return;
+  }
   clearPendingWaitScreen();
-  STORE_STATE.checkoutDirectItem = { id: item.id, name: item.name, price: Number(item.price), type: item.type, qty: 1 };
+  STORE_STATE.checkoutDirectItem = {
+    id: item.id,
+    name: item.name,
+    price: Number(item.price),
+    type: item.type,
+    purchaseMode: item.purchaseMode || 'unidad',
+    purchaseDetail: item.purchaseDetail || '',
+    qty: 1
+  };
   STORE_STATE.selectedPlanId = null;
   switchPublicTab('pasarela');
 }
@@ -970,12 +1201,18 @@ function renderPasarelaModule() {
           ${STORE_STATE.checkoutDirectItem ? `<span class="text-[11px] text-sky-400 font-semibold">Compra directa</span>` : `<span class="text-[11px] text-emerald-400 font-semibold">Desde carrito</span>`}
         </div>
         <div class="space-y-2">
-          ${items.map(i => `
-            <div class="flex items-center justify-between p-3 rounded-xl bg-slate-900/90 border border-slate-800 text-xs">
-              <span class="font-bold text-white">${i.qty}x ${escapeHtml(i.name)}</span>
-              <span class="font-extrabold text-emerald-400">${escapeHtml(sym)}${(i.price * i.qty).toFixed(2)}</span>
-            </div>
-          `).join('')}
+          ${items.map(i => {
+            const mLbl = formatPurchaseModeLabel(i.purchaseMode, i.purchaseDetail);
+            return `
+              <div class="flex items-center justify-between gap-2 p-3 rounded-xl bg-slate-900/90 border border-slate-800 text-xs">
+                <div class="min-w-0">
+                  <span class="font-bold text-white">${i.qty}x ${escapeHtml(i.name)}</span>
+                  ${mLbl ? `<span class="ml-1.5 px-2 py-0.5 rounded bg-purple-500/20 text-purple-200 text-[10px] font-semibold">${escapeHtml(mLbl)}</span>` : ''}
+                </div>
+                <span class="font-extrabold text-emerald-400 shrink-0">${escapeHtml(sym)}${(i.price * i.qty).toFixed(2)}</span>
+              </div>
+            `;
+          }).join('')}
         </div>
 
         <!-- Cupón o Código Especial directo en Pasarela -->
@@ -1137,7 +1374,10 @@ async function confirmCheckoutToWhatsApp(e) {
   const customerName = document.getElementById('chk-customer-name').value.trim();
   const reference = document.getElementById('chk-reference').value.trim();
 
-  const itemLines = items.map(i => `• ${i.qty}x ${i.name} (${sym}${(i.price * i.qty).toFixed(2)})`).join('\n');
+  const itemLines = items.map(i => {
+    const mLbl = formatPurchaseModeLabel(i.purchaseMode, i.purchaseDetail);
+    return `• ${i.qty}x ${i.name}${mLbl ? ` [${mLbl}]` : ''} (${sym}${(i.price * i.qty).toFixed(2)})`;
+  }).join('\n');
   const planLine = plan
     ? `${plan.name}${plan.mode === 'abonos' ? ` (Plazo: ${plan.deadlineDays} días)` : ''}`
     : 'Al Contado';
@@ -1271,7 +1511,7 @@ function handleSecretAdminTap() {
   }
 }
 
-function switchAdminTab(tabName) {
+function switchAdminTab(tabName, shouldResetScroll = true) {
   STORE_STATE.adminTab = tabName;
   renderNavigationChrome('admin');
 
@@ -1288,7 +1528,7 @@ function switchAdminTab(tabName) {
 
   if (tabName === 'catalogo') renderAdminItemPlansCheckboxes();
   if (tabName === 'pasarela') renderAdminReceivablesManager();
-  resetScrollArea();
+  if (shouldResetScroll) resetScrollArea();
   if (window.lucide) window.lucide.createIcons();
 }
 
@@ -1313,7 +1553,9 @@ function logoutAdmin() {
   switchView('public');
 }
 
-function renderAdminView() {
+function renderAdminView(options = {}) {
+  const preserveScroll = Boolean(options.preserveScroll);
+  const preserveForms = Boolean(options.preserveForms);
   renderNavigationChrome('admin');
   document.getElementById('admin-login-box').classList.toggle('hidden', STORE_STATE.isAdminAuthenticated);
   document.getElementById('admin-dashboard-box').classList.toggle('hidden', !STORE_STATE.isAdminAuthenticated);
@@ -1322,9 +1564,9 @@ function renderAdminView() {
     return;
   }
 
-  switchAdminTab(STORE_STATE.adminTab);
+  switchAdminTab(STORE_STATE.adminTab, !preserveScroll);
   renderAdminClassificationUI();
-  renderAdminItemPlansCheckboxes();
+  if (!preserveForms) renderAdminItemPlansCheckboxes();
   renderAdminCatalogList();
   renderAdminProjectsList();
   renderAdminJobsList();
@@ -1334,17 +1576,19 @@ function renderAdminView() {
   renderAdminPlansList();
   renderAdminCouponsList();
   renderAdminSponsorsList();
-  renderAdminCloudSettings();
+  if (!preserveForms) renderAdminCloudSettings();
 
-  const c = STORE_STATE.config;
-  document.getElementById('cfg-brand-name').value = c.brandName;
-  document.getElementById('cfg-tagline').value = c.tagline;
-  document.getElementById('cfg-wa-number').value = c.whatsappNumber;
-  document.getElementById('cfg-currency').value = c.currencySymbol;
-  document.getElementById('cfg-hero-greeting').value = c.heroGreeting;
-  document.getElementById('cfg-hero-highlight').value = c.heroHighlight;
-  document.getElementById('cfg-hero-subtitle').value = c.heroSubtitle;
-  document.getElementById('cfg-welcome-msg').value = c.welcomeMessage;
+  if (!preserveForms) {
+    const c = STORE_STATE.config;
+    document.getElementById('cfg-brand-name').value = c.brandName;
+    document.getElementById('cfg-tagline').value = c.tagline;
+    document.getElementById('cfg-wa-number').value = c.whatsappNumber;
+    document.getElementById('cfg-currency').value = c.currencySymbol;
+    document.getElementById('cfg-hero-greeting').value = c.heroGreeting;
+    document.getElementById('cfg-hero-highlight').value = c.heroHighlight;
+    document.getElementById('cfg-hero-subtitle').value = c.heroSubtitle;
+    document.getElementById('cfg-welcome-msg').value = c.welcomeMessage;
+  }
 }
 
 // --- Checkboxes de Planes de Pago por Producto en el Formulario Admin ---
@@ -1397,7 +1641,7 @@ function renderAdminClassificationUI() {
     `).join('');
   }
 
-  if (itemScSel) {
+  if (itemScSel && document.activeElement !== itemScSel) {
     const prev = itemScSel.value;
     itemScSel.innerHTML = STORE_STATE.salesCatalogs.length
       ? STORE_STATE.salesCatalogs.map(sc => `<option value="${sc.id}">${escapeHtml(sc.name)}</option>`).join('')
@@ -1405,7 +1649,7 @@ function renderAdminClassificationUI() {
     if (prev && STORE_STATE.salesCatalogs.some(sc => sc.id === prev)) itemScSel.value = prev;
   }
 
-  if (itemCatSel) {
+  if (itemCatSel && document.activeElement !== itemCatSel) {
     const prev = itemCatSel.value;
     itemCatSel.innerHTML = STORE_STATE.categories.length
       ? STORE_STATE.categories.map(cat => `<option value="${escapeHtml(cat)}">${escapeHtml(cat)}</option>`).join('')
@@ -1461,6 +1705,8 @@ function renderAdminCatalogList() {
     const planNames = (item.allowedPlanIds || [])
       .map(pid => STORE_STATE.paymentPlans.find(p => p.id === pid)?.name)
       .filter(Boolean);
+    const priced = hasFixedPrice(item);
+    const modeLabel = formatPurchaseModeLabel(item.purchaseMode, item.purchaseDetail);
 
     return `
       <div class="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1468,12 +1714,17 @@ function renderAdminCatalogList() {
           <div class="flex items-center gap-2 flex-wrap">
             <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase ${item.type === 'servicio' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-sky-500/20 text-sky-300'}">${item.type}</span>
             <span class="font-bold text-white text-sm">${escapeHtml(item.name)}</span>
-            <span class="text-emerald-400 font-extrabold text-sm">${escapeHtml(STORE_STATE.config.currencySymbol)}${item.price}</span>
+            ${priced
+              ? `<span class="text-emerald-400 font-extrabold text-sm">${escapeHtml(STORE_STATE.config.currencySymbol)}${Number(item.price).toFixed(2)}</span>`
+              : `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">A consultar / Cotizar</span>`}
+            ${modeLabel ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-200 border border-purple-500/30">${escapeHtml(modeLabel)}</span>` : ''}
           </div>
           <p class="text-xs text-slate-400 mt-0.5">${escapeHtml(getSalesCatalogName(item.salesCatalogId))} · ${escapeHtml(item.category)} · ${escapeHtml(item.description)}</p>
           ${item.details ? `<p class="text-[11px] text-slate-300 bg-slate-950/80 border border-slate-800 rounded-xl p-2 mt-1.5 whitespace-pre-line">${escapeHtml(item.details)}</p>` : ''}
           <div class="flex flex-wrap gap-1.5 mt-1.5">
-            ${planNames.map(n => `<span class="px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 text-[10px] font-semibold">${escapeHtml(n)}</span>`).join('')}
+            ${priced
+              ? planNames.map(n => `<span class="px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 text-[10px] font-semibold">${escapeHtml(n)}</span>`).join('')
+              : `<span class="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[10px] font-semibold">Cotización / Info vía WhatsApp</span>`}
           </div>
         </div>
         <div class="flex gap-2 shrink-0">
@@ -1487,9 +1738,15 @@ function renderAdminCatalogList() {
 
 function handleSaveCatalogItem(e) {
   e.preventDefault();
+  const priceInput = document.getElementById('item-price');
+  const priceOnRequestCb = document.getElementById('item-price-on-request');
+  const rawPrice = priceInput ? priceInput.value.trim() : '';
+  const priceOnRequest = Boolean((priceOnRequestCb && priceOnRequestCb.checked) || rawPrice === '');
+  const parsedPrice = priceOnRequest ? null : (Number.isFinite(parseFloat(rawPrice)) ? parseFloat(rawPrice) : null);
+
   const checkedPlans = Array.from(document.querySelectorAll('input[name="item-allowed-plan"]:checked')).map(cb => cb.value);
-  if (!checkedPlans.length) {
-    showToast('Debes marcar al menos un tipo de pago para este producto/servicio', 'error');
+  if (!priceOnRequest && !checkedPlans.length) {
+    showToast('Marca al menos un tipo de pago o deja el precio vacío para cotizar por WhatsApp', 'error');
     return;
   }
 
@@ -1503,7 +1760,10 @@ function handleSaveCatalogItem(e) {
     name: document.getElementById('item-name').value.trim(),
     salesCatalogId: document.getElementById('item-sales-catalog').value,
     type: document.getElementById('item-type').value,
-    price: parseFloat(document.getElementById('item-price').value) || 0,
+    price: parsedPrice,
+    priceOnRequest: priceOnRequest || parsedPrice === null,
+    purchaseMode: document.getElementById('item-purchase-mode')?.value || 'unidad',
+    purchaseDetail: document.getElementById('item-purchase-detail')?.value.trim() || '',
     category: document.getElementById('item-category').value,
     badge: document.getElementById('item-badge').value.trim(),
     icon: document.getElementById('item-icon').value,
@@ -1534,7 +1794,23 @@ function editCatalogItem(id) {
   document.getElementById('item-name').value = item.name;
   document.getElementById('item-sales-catalog').value = item.salesCatalogId || STORE_STATE.salesCatalogs[0]?.id;
   document.getElementById('item-type').value = item.type;
-  document.getElementById('item-price').value = item.price;
+
+  const priced = hasFixedPrice(item);
+  const priceInput = document.getElementById('item-price');
+  const priceCb = document.getElementById('item-price-on-request');
+  if (priceInput) {
+    priceInput.value = priced ? item.price : '';
+    priceInput.disabled = !priced;
+    priceInput.classList.toggle('opacity-50', !priced);
+  }
+  if (priceCb) priceCb.checked = !priced;
+
+  const modeEl = document.getElementById('item-purchase-mode');
+  const detailEl = document.getElementById('item-purchase-detail');
+  if (modeEl) modeEl.value = item.purchaseMode || 'unidad';
+  if (detailEl) detailEl.value = item.purchaseDetail || '';
+  updatePurchaseDetailPlaceholder('item');
+
   document.getElementById('item-category').value = item.category;
   document.getElementById('item-badge').value = item.badge || '';
   document.getElementById('item-icon').value = item.icon || 'shopping-bag';
@@ -1543,7 +1819,7 @@ function editCatalogItem(id) {
   STORE_STATE.draftItemImages = Array.isArray(item.images) ? [...item.images] : [];
   renderDraftImagesPreview('item');
   renderAdminItemPlansCheckboxes(item.allowedPlanIds || []);
-  resetScrollArea();
+  scrollToCardForm('admin-item-form-card');
 }
 
 function cancelEditCatalogItem() {
@@ -1551,7 +1827,17 @@ function cancelEditCatalogItem() {
   STORE_STATE.draftItemImages = [];
   document.getElementById('admin-item-form-title').textContent = '3. Agregar Producto o Servicio';
   document.getElementById('admin-item-cancel-edit').classList.add('hidden');
-  ['item-name', 'item-price', 'item-badge', 'item-description', 'item-details'].forEach(id => { document.getElementById(id).value = ''; });
+  ['item-name', 'item-price', 'item-purchase-detail', 'item-badge', 'item-description', 'item-details'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const priceInput = document.getElementById('item-price');
+  const priceCb = document.getElementById('item-price-on-request');
+  if (priceInput) { priceInput.disabled = false; priceInput.classList.remove('opacity-50'); }
+  if (priceCb) priceCb.checked = false;
+  const modeEl = document.getElementById('item-purchase-mode');
+  if (modeEl) modeEl.value = 'unidad';
+  updatePurchaseDetailPlaceholder('item');
   renderDraftImagesPreview('item');
   renderAdminItemPlansCheckboxes();
 }
@@ -1814,22 +2100,42 @@ function openItemDetailModal(itemId) {
   if (!item) return;
   const cfg = STORE_STATE.config;
   const plans = getAllowedPlansForItem(item);
+  const priced = hasFixedPrice(item);
+  const modeLabel = formatPurchaseModeLabel(item.purchaseMode, item.purchaseDetail);
   const body = document.getElementById('item-detail-modal-body');
+
+  const directWaMsg =
+    `¡Hola! Me interesa recibir más información sobre *${item.name}* (${item.type === 'servicio' ? 'Servicio' : 'Producto'} · ${item.category})` +
+    (modeLabel ? `\n*Modalidad:* ${modeLabel}` : '') +
+    (priced ? `\n*Precio publicado:* ${cfg.currencySymbol}${Number(item.price).toFixed(2)}` : `\n*Precio:* A consultar / Solicito cotización`);
 
   body.innerHTML = `
     <div class="flex items-start justify-between gap-3 border-b border-slate-800 pb-4">
       <div>
-        <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-500/15 text-sky-300 border border-sky-500/30">${item.type === 'servicio' ? 'Servicio' : 'Producto'} · ${escapeHtml(item.category)}</span>
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-500/15 text-sky-300 border border-sky-500/30">${item.type === 'servicio' ? 'Servicio' : 'Producto'} · ${escapeHtml(item.category)}</span>
+          ${modeLabel ? `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-500/20 text-purple-200 border border-purple-500/30">${escapeHtml(modeLabel)}</span>` : ''}
+        </div>
         <h3 class="text-xl font-extrabold text-white mt-2">${escapeHtml(item.name)}</h3>
         <div class="text-xs text-indigo-300 font-semibold mt-0.5">${escapeHtml(getSalesCatalogName(item.salesCatalogId))}</div>
       </div>
       <button onclick="closeItemDetailModal()" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
     </div>
 
-    <div class="flex flex-wrap items-baseline gap-3">
-      <span class="text-3xl font-extrabold text-emerald-400">${escapeHtml(cfg.currencySymbol)}${item.price}</span>
-      <span class="text-sm font-bold text-sky-300 bg-sky-500/10 border border-sky-500/25 px-3 py-1 rounded-xl">&approx; ${formatBs(item.price, STORE_STATE.bcvRates?.usd)} (BCV)</span>
-    </div>
+    ${priced ? `
+      <div class="flex flex-wrap items-baseline gap-3">
+        <span class="text-3xl font-extrabold text-emerald-400">${escapeHtml(cfg.currencySymbol)}${Number(item.price).toFixed(2)}</span>
+        <span class="text-sm font-bold text-sky-300 bg-sky-500/10 border border-sky-500/25 px-3 py-1 rounded-xl">&approx; ${formatBs(item.price, STORE_STATE.bcvRates?.usd)} (BCV)</span>
+      </div>
+    ` : `
+      <div class="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div class="text-sm font-extrabold text-amber-300">Precio a consultar / Bajo cotización</div>
+          <div class="text-xs text-slate-300">Solicita información o pide una cotización personalizada directo por WhatsApp.</div>
+        </div>
+        <span class="px-2.5 py-1 rounded-lg bg-[#25D366]/20 text-emerald-300 text-[11px] font-bold border border-[#25D366]/30">WhatsApp Directo</span>
+      </div>
+    `}
 
     ${renderModalGalleryHtml(item.images, item.name)}
 
@@ -1845,21 +2151,38 @@ function openItemDetailModal(itemId) {
       </div>
     ` : ''}
 
-    <div class="space-y-2">
-      <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Modalidades de pago disponibles</div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        ${plans.map(p => `
-          <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs">
-            <div class="font-bold text-white">${escapeHtml(p.name)}</div>
-            <div class="text-slate-400 mt-0.5">${escapeHtml(p.description)}</div>
-          </div>
-        `).join('')}
+    ${priced && plans.length ? `
+      <div class="space-y-2">
+        <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Modalidades de pago disponibles</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          ${plans.map(p => `
+            <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs">
+              <div class="font-bold text-white">${escapeHtml(p.name)}</div>
+              <div class="text-slate-400 mt-0.5">${escapeHtml(p.description)}</div>
+            </div>
+          `).join('')}
+        </div>
       </div>
-    </div>
+    ` : ''}
 
     <div class="pt-3 border-t border-slate-800 flex flex-wrap gap-2.5">
-      <button onclick="addToCart('${item.id}'); closeItemDetailModal();" class="flex-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold border border-slate-700">Agregar al Carrito</button>
-      <button onclick="closeItemDetailModal(); openPasarelaForItem('${item.id}');" class="flex-1 py-3 px-4 rounded-xl bg-astro-gradient text-white text-xs font-extrabold">Ir a Pasarela y Pagar</button>
+      ${priced ? `
+        <button onclick="addToCart('${item.id}'); closeItemDetailModal();" class="flex-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold border border-slate-700">Agregar al Carrito</button>
+        <button onclick="closeItemDetailModal(); openPasarelaForItem('${item.id}');" class="flex-1 py-3 px-4 rounded-xl bg-astro-gradient text-white text-xs font-extrabold">Ir a Pasarela y Pagar</button>
+        <button onclick="openQuoteModal('catalog', '${item.id}')" class="w-full py-2.5 px-4 rounded-xl bg-[#25D366]/15 hover:bg-[#25D366]/25 text-emerald-300 border border-[#25D366]/35 text-xs font-bold flex items-center justify-center gap-1.5">
+          <i data-lucide="message-circle" class="w-4 h-4"></i>
+          <span>Pedir Info / Solicitar Cotización por WhatsApp</span>
+        </button>
+      ` : `
+        <button onclick="openQuoteModal('catalog', '${item.id}')" class="flex-1 py-3 px-4 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-slate-950 text-xs font-extrabold flex items-center justify-center gap-1.5">
+          <i data-lucide="file-text" class="w-4 h-4"></i>
+          <span>Solicitar Cotización</span>
+        </button>
+        <a href="${buildWhatsAppUrl(directWaMsg, STORE_STATE.config)}" target="_blank" rel="noopener" class="flex-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 text-xs font-bold text-center flex items-center justify-center gap-1.5">
+          <i data-lucide="message-circle" class="w-4 h-4"></i>
+          <span>Pedir Info por WhatsApp</span>
+        </a>
+      `}
     </div>
   `;
 
@@ -1867,18 +2190,150 @@ function openItemDetailModal(itemId) {
   if (window.lucide) window.lucide.createIcons();
 }
 
+function openQuoteModal(entityType, entityId) {
+  const cfg = STORE_STATE.config;
+  let title = '';
+  let subtitle = '';
+  let mode = 'cotizacion';
+  let detail = '';
+  let priced = false;
+  let priceText = 'Precio a consultar / Bajo cotización';
+  let targetPhone = cfg.whatsappNumber;
+
+  if (entityType === 'catalog') {
+    const item = STORE_STATE.catalog.find(i => i.id === entityId);
+    if (!item) return;
+    title = item.name;
+    subtitle = `${item.type === 'servicio' ? 'Servicio' : 'Producto'} · ${item.category}`;
+    mode = item.purchaseMode || 'unidad';
+    detail = item.purchaseDetail || '';
+    priced = hasFixedPrice(item);
+    if (priced) priceText = `${cfg.currencySymbol}${Number(item.price).toFixed(2)} (${formatBs(item.price, STORE_STATE.bcvRates?.usd)})`;
+  } else if (entityType === 'sponsor') {
+    const s = STORE_STATE.sponsors.find(x => x.id === entityId);
+    if (!s) return;
+    title = s.name;
+    subtitle = `Socio / Aliado · ${s.role}`;
+    mode = s.purchaseMode || 'mencion';
+    detail = s.purchaseDetail || '';
+    priced = hasFixedPrice(s);
+    if (priced) priceText = `${cfg.currencySymbol}${Number(s.price).toFixed(2)} (${formatBs(s.price, STORE_STATE.bcvRates?.usd)})`;
+    if (s.whatsapp && s.whatsapp.trim()) targetPhone = s.whatsapp.trim();
+  } else if (entityType === 'project') {
+    const p = STORE_STATE.projects.find(x => x.id === entityId);
+    if (!p) return;
+    title = p.title;
+    subtitle = `Proyecto / Portafolio · ${p.category}`;
+    mode = p.purchaseMode || 'cotizacion';
+    detail = p.purchaseDetail || '';
+    priced = hasFixedPrice(p);
+    if (priced) priceText = `Ref. ${cfg.currencySymbol}${Number(p.price).toFixed(2)}`;
+  } else {
+    return;
+  }
+
+  const modeLabel = formatPurchaseModeLabel(mode, detail);
+  const meta = PURCHASE_MODE_META[mode] || PURCHASE_MODE_META.cotizacion;
+  const quickMsg =
+    `¡Hola! Quisiera recibir información y cotización sobre *${title}* (${subtitle}).` +
+    (modeLabel ? `\n*Modalidad:* ${modeLabel}` : '') +
+    `\n*Precio:* ${priceText}`;
+  const customCfg = { ...cfg, whatsappNumber: targetPhone };
+
+  const body = document.getElementById('item-detail-modal-body');
+  body.innerHTML = `
+    <div class="flex items-start justify-between gap-3 border-b border-slate-800 pb-4">
+      <div>
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Cotización / Info WhatsApp</span>
+          ${modeLabel ? `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-500/20 text-purple-200 border border-purple-500/30">${escapeHtml(modeLabel)}</span>` : ''}
+        </div>
+        <h3 class="text-lg sm:text-xl font-extrabold text-white mt-2">${escapeHtml(title)}</h3>
+        <div class="text-xs text-slate-400 mt-0.5">${escapeHtml(subtitle)} · <strong class="${priced ? 'text-emerald-400' : 'text-amber-300'}">${escapeHtml(priceText)}</strong></div>
+      </div>
+      <button onclick="closeItemDetailModal()" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+
+    <form onsubmit="submitQuoteToWhatsApp(event)" data-title="${escapeHtml(title)}" data-subtitle="${escapeHtml(subtitle)}" data-mode="${escapeHtml(modeLabel)}" data-price="${escapeHtml(priceText)}" data-phone="${escapeHtml(targetPhone)}" class="space-y-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Tu nombre *</label>
+          <input id="quote-customer-name" type="text" required placeholder="Ej. María González" class="w-full bg-slate-900 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-400" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">${escapeHtml(meta.qtyLabel)}</label>
+          <input id="quote-qty-info" type="text" placeholder="${escapeHtml(meta.placeholder)}" class="w-full bg-slate-900 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-400" />
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-300 mb-1">¿Qué necesitas cotizar o consultar? (opcional)</label>
+        <textarea id="quote-notes" rows="3" placeholder="Indica especificaciones, fechas, dudas o presupuesto estimado..." class="w-full bg-slate-900 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-400"></textarea>
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-2.5 pt-2">
+        <button type="submit" class="flex-1 py-3 px-4 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-slate-950 text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20">
+          <i data-lucide="send" class="w-4 h-4"></i>
+          <span>Enviar Cotización por WhatsApp</span>
+        </button>
+        <a href="${buildWhatsAppUrl(quickMsg, customCfg)}" target="_blank" rel="noopener" class="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 text-xs font-bold text-center flex items-center justify-center gap-1.5">
+          <i data-lucide="message-circle" class="w-4 h-4"></i>
+          <span>Chat Directo</span>
+        </a>
+      </div>
+    </form>
+  `;
+
+  document.getElementById('item-detail-modal').classList.remove('hidden');
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function submitQuoteToWhatsApp(e) {
+  e.preventDefault();
+  const form = e.target;
+  const title = form.dataset.title || '';
+  const subtitle = form.dataset.subtitle || '';
+  const modeLabel = form.dataset.mode || '';
+  const priceText = form.dataset.price || '';
+  const targetPhone = form.dataset.phone || STORE_STATE.config.whatsappNumber;
+
+  const customerName = document.getElementById('quote-customer-name').value.trim();
+  const qtyInfo = document.getElementById('quote-qty-info').value.trim();
+  const notes = document.getElementById('quote-notes').value.trim();
+
+  const msg =
+    `¡Hola! Soy *${customerName}* y solicito información / cotización desde *${STORE_STATE.config.brandName}*:\n\n` +
+    `*Artículo / Opción:* ${title}\n` +
+    `*Tipo:* ${subtitle}\n` +
+    (modeLabel ? `*Modalidad:* ${modeLabel}\n` : '') +
+    `*Precio:* ${priceText}\n` +
+    (qtyInfo ? `*Cantidad / Plan:* ${qtyInfo}\n` : '') +
+    (notes ? `*Detalles:* ${notes}\n` : '') +
+    `\nQuedo atento(a) a su respuesta.`;
+
+  const customCfg = { ...STORE_STATE.config, whatsappNumber: targetPhone };
+  window.open(buildWhatsAppUrl(msg, customCfg), '_blank', 'noopener');
+  closeItemDetailModal();
+  showToast('Abriendo solicitud de cotización en WhatsApp');
+}
+
 function openProjectDetailModal(projectId) {
   const p = STORE_STATE.projects.find(x => x.id === projectId);
   if (!p) return;
   const body = document.getElementById('item-detail-modal-body');
+  const priced = hasFixedPrice(p);
+  const modeLabel = formatPurchaseModeLabel(p.purchaseMode, p.purchaseDetail);
   const waMsg = `¡Hola! Vi el proyecto "${p.title}" en tu portafolio y me interesa cotizar algo similar.`;
 
   body.innerHTML = `
     <div class="flex items-start justify-between gap-3 border-b border-slate-800 pb-4">
       <div>
-        <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">${escapeHtml(p.category)} · ${escapeHtml(p.year)}</span>
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">${escapeHtml(p.category)} · ${escapeHtml(p.year)}</span>
+          ${modeLabel ? `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-500/20 text-purple-200 border border-purple-500/30">${escapeHtml(modeLabel)}</span>` : ''}
+        </div>
         <h3 class="text-xl font-extrabold text-white mt-2">${escapeHtml(p.title)}</h3>
-        <div class="text-xs text-emerald-400 font-semibold mt-0.5">Cliente: ${escapeHtml(p.client)} · ${escapeHtml(p.status)}</div>
+        <div class="text-xs text-emerald-400 font-semibold mt-0.5">Cliente: ${escapeHtml(p.client)} · ${escapeHtml(p.status)}${priced ? ` · Ref. ${escapeHtml(STORE_STATE.config.currencySymbol)}${Number(p.price).toFixed(2)}` : ''}</div>
       </div>
       <button onclick="closeItemDetailModal()" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
     </div>
@@ -1893,7 +2348,8 @@ function openProjectDetailModal(projectId) {
       ${(p.tags || []).map(t => `<span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-xs text-indigo-300 font-semibold">${escapeHtml(t)}</span>`).join('')}
     </div>
     <div class="pt-3 border-t border-slate-800 flex flex-wrap gap-2.5">
-      <a href="${buildWhatsAppUrl(waMsg, STORE_STATE.config)}" target="_blank" rel="noopener" class="flex-1 py-3 px-4 rounded-xl bg-[#25D366] text-slate-950 text-xs font-extrabold text-center">Cotizar proyecto similar por WhatsApp</a>
+      <button onclick="openQuoteModal('project', '${p.id}')" class="flex-1 py-3 px-4 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-slate-950 text-xs font-extrabold text-center">Solicitar Cotización Similar</button>
+      <a href="${buildWhatsAppUrl(waMsg, STORE_STATE.config)}" target="_blank" rel="noopener" class="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 text-xs font-bold text-center">WhatsApp Directo</a>
       ${p.url ? `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener" class="py-3 px-4 rounded-xl bg-indigo-600 text-white text-xs font-bold">Abrir Demo</a>` : ''}
     </div>
   `;
@@ -1909,22 +2365,27 @@ function closeItemDetailModal() {
 function renderAdminProjectsList() {
   const el = document.getElementById('admin-projects-list');
   if (!el) return;
-  el.innerHTML = STORE_STATE.projects.map(p => `
-    <div class="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-      <div class="min-w-0">
-        <div class="flex items-center gap-2 flex-wrap">
-          <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300">${escapeHtml(p.category)}</span>
-          <span class="font-bold text-white text-sm">${escapeHtml(p.title)}</span>
-          <span class="text-xs text-emerald-400 font-semibold">${escapeHtml(p.year)}</span>
+  el.innerHTML = STORE_STATE.projects.map(p => {
+    const modeLabel = formatPurchaseModeLabel(p.purchaseMode, p.purchaseDetail);
+    return `
+      <div class="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300">${escapeHtml(p.category)}</span>
+            <span class="font-bold text-white text-sm">${escapeHtml(p.title)}</span>
+            <span class="text-xs text-emerald-400 font-semibold">${escapeHtml(p.year)}</span>
+            ${hasFixedPrice(p) ? `<span class="text-xs text-emerald-400 font-bold">Ref. ${escapeHtml(STORE_STATE.config.currencySymbol)}${Number(p.price).toFixed(2)}</span>` : `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300">Cotizable</span>`}
+            ${modeLabel ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-200">${escapeHtml(modeLabel)}</span>` : ''}
+          </div>
+          <p class="text-xs text-slate-400 truncate mt-0.5">${escapeHtml(p.client)} · ${escapeHtml(p.summary)}</p>
         </div>
-        <p class="text-xs text-slate-400 truncate mt-0.5">${escapeHtml(p.client)} · ${escapeHtml(p.summary)}</p>
+        <div class="flex gap-2 shrink-0">
+          <button onclick="editProject('${p.id}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-sky-300">Editar</button>
+          <button onclick="deleteProject('${p.id}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-500/15 text-rose-300">Eliminar</button>
+        </div>
       </div>
-      <div class="flex gap-2 shrink-0">
-        <button onclick="editProject('${p.id}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-sky-300">Editar</button>
-        <button onclick="deleteProject('${p.id}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-500/15 text-rose-300">Eliminar</button>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 function handleSaveProject(e) {
@@ -1936,6 +2397,9 @@ function handleSaveProject(e) {
   }
 
   const tagsRaw = document.getElementById('prj-tags').value.trim();
+  const rawPrice = document.getElementById('prj-price')?.value.trim() || '';
+  const parsedPrice = rawPrice !== '' && Number.isFinite(parseFloat(rawPrice)) ? parseFloat(rawPrice) : null;
+
   const data = {
     title: document.getElementById('prj-title').value.trim(),
     client: document.getElementById('prj-client').value.trim(),
@@ -1943,6 +2407,10 @@ function handleSaveProject(e) {
     category: document.getElementById('prj-category').value.trim(),
     status: document.getElementById('prj-status').value.trim() || 'Completado',
     tags: tagsRaw ? tagsRaw.split(',').map(s => s.trim()).filter(Boolean) : [],
+    price: parsedPrice,
+    priceOnRequest: parsedPrice === null,
+    purchaseMode: document.getElementById('prj-purchase-mode')?.value || '',
+    purchaseDetail: document.getElementById('prj-purchase-detail')?.value.trim() || '',
     url: document.getElementById('prj-url').value.trim(),
     summary: document.getElementById('prj-summary').value.trim(),
     details: document.getElementById('prj-details').value.trim(),
@@ -1973,12 +2441,15 @@ function editProject(id) {
   document.getElementById('prj-category').value = p.category;
   document.getElementById('prj-status').value = p.status;
   document.getElementById('prj-tags').value = (p.tags || []).join(', ');
+  if (document.getElementById('prj-price')) document.getElementById('prj-price').value = hasFixedPrice(p) ? p.price : '';
+  if (document.getElementById('prj-purchase-mode')) document.getElementById('prj-purchase-mode').value = p.purchaseMode || '';
+  if (document.getElementById('prj-purchase-detail')) document.getElementById('prj-purchase-detail').value = p.purchaseDetail || '';
   document.getElementById('prj-url').value = p.url || '';
   document.getElementById('prj-summary').value = p.summary;
   document.getElementById('prj-details').value = p.details || '';
   STORE_STATE.draftProjectImages = Array.isArray(p.images) ? [...p.images] : [];
   renderDraftImagesPreview('project');
-  resetScrollArea();
+  scrollToCardForm('admin-prj-form-card');
 }
 
 function cancelEditProject() {
@@ -1986,9 +2457,11 @@ function cancelEditProject() {
   STORE_STATE.draftProjectImages = [];
   document.getElementById('admin-prj-form-title').textContent = 'Agregar Trabajo / Proyecto Realizado';
   document.getElementById('admin-prj-cancel-edit').classList.add('hidden');
-  ['prj-title', 'prj-client', 'prj-year', 'prj-category', 'prj-tags', 'prj-url', 'prj-summary', 'prj-details'].forEach(id => {
-    document.getElementById(id).value = '';
+  ['prj-title', 'prj-client', 'prj-year', 'prj-category', 'prj-tags', 'prj-price', 'prj-purchase-detail', 'prj-url', 'prj-summary', 'prj-details'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
   });
+  if (document.getElementById('prj-purchase-mode')) document.getElementById('prj-purchase-mode').value = '';
   document.getElementById('prj-status').value = 'Completado';
   renderDraftImagesPreview('project');
 }
@@ -2207,9 +2680,10 @@ function renderTrabajosModule() {
 
   grid.innerHTML = filtered.map(j => {
     const timeInfo = computeJobDeadlineInfo(j.contractDate, j.dueDate, j.status);
-    const total = Number(j.totalAmount || 0);
-    const paid = Number(j.paidAmount || 0);
-    const pending = Math.max(0, total - paid);
+    const hasPrice = !j.priceOnRequest && j.totalAmount !== null && j.totalAmount !== undefined && j.totalAmount !== '' && Number(j.totalAmount) > 0;
+    const total = hasPrice ? Number(j.totalAmount || 0) : 0;
+    const paid = hasPrice ? Number(j.paidAmount || 0) : 0;
+    const pending = hasPrice ? Math.max(0, total - paid) : 0;
     const pct = Math.min(100, Math.max(0, Number(j.progress || 0)));
 
     const statusBadgeCls = j.status === 'Completado'
@@ -2268,16 +2742,23 @@ function renderTrabajosModule() {
               <span class="text-slate-400">Modalidad:</span>
               <span class="text-slate-200 font-semibold">${escapeHtml(j.paymentMode || 'Acordado')}</span>
             </div>
-            <div class="flex justify-between">
-              <span class="text-slate-400">Pagado / Abonado:</span>
-              <span class="text-emerald-400 font-bold">${escapeHtml(sym)}${paid.toFixed(2)} de ${escapeHtml(sym)}${total.toFixed(2)}</span>
-            </div>
-            ${pending > 0 ? `
+            ${hasPrice ? `
               <div class="flex justify-between">
-                <span class="text-slate-400">Saldo pendiente:</span>
-                <span class="text-amber-300 font-bold">${escapeHtml(sym)}${pending.toFixed(2)} (&approx; ${formatBs(pending, usdRate)})</span>
+                <span class="text-slate-400">Pagado / Abonado:</span>
+                <span class="text-emerald-400 font-bold">${escapeHtml(sym)}${paid.toFixed(2)} de ${escapeHtml(sym)}${total.toFixed(2)}</span>
               </div>
-            ` : `<div class="text-emerald-400 font-bold text-right">Pago completado 100%</div>`}
+              ${pending > 0 ? `
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Saldo pendiente:</span>
+                  <span class="text-amber-300 font-bold">${escapeHtml(sym)}${pending.toFixed(2)} (&approx; ${formatBs(pending, usdRate)})</span>
+                </div>
+              ` : `<div class="text-emerald-400 font-bold text-right">Pago completado 100%</div>`}
+            ` : `
+              <div class="flex justify-between">
+                <span class="text-slate-400">Monto:</span>
+                <span class="text-amber-300 font-bold">Por cotizar / Consultar</span>
+              </div>
+            `}
           </div>
 
           ${j.notes ? `<p class="text-[11px] text-slate-300 leading-relaxed">${escapeHtml(j.notes)}</p>` : ''}
@@ -2288,7 +2769,7 @@ function renderTrabajosModule() {
             <i data-lucide="eye" class="w-4 h-4"></i>
             <span>Ver Avances (${(j.deliverables || []).length})</span>
           </button>
-          ${pending > 0 ? `
+          ${hasPrice && pending > 0 ? `
             <button onclick="openAbonoModal('${j.id}')" class="flex-1 py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold transition flex items-center justify-center gap-1.5">
               <i data-lucide="wallet" class="w-4 h-4"></i>
               <span>Reportar Abono</span>
@@ -2296,7 +2777,7 @@ function renderTrabajosModule() {
           ` : `
             <a href="${buildWhatsAppUrl(waMsg, STORE_STATE.config)}" target="_blank" rel="noopener" class="flex-1 py-2.5 px-3 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-slate-950 text-xs font-extrabold text-center transition flex items-center justify-center gap-1.5">
               <i data-lucide="message-circle" class="w-4 h-4"></i>
-              <span>Consultar</span>
+              <span>${hasPrice ? 'Consultar' : 'Pedir Info / Cotizar'}</span>
             </a>
           `}
         </div>
@@ -2315,26 +2796,32 @@ function renderAdminJobsList() {
     el.innerHTML = `<p class="text-xs text-slate-400">No hay trabajos activos registrados.</p>`;
     return;
   }
-  el.innerHTML = STORE_STATE.activeJobs.map(j => `
-    <div class="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-      <div class="min-w-0">
-        <div class="flex items-center gap-2 flex-wrap">
-          <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300">${escapeHtml(j.code)}</span>
-          <span class="font-bold text-white text-sm">${escapeHtml(j.serviceName)}</span>
-          <span class="text-xs text-emerald-400 font-bold">${j.progress}% · ${escapeHtml(j.status)}</span>
+  el.innerHTML = STORE_STATE.activeJobs.map(j => {
+    const hasPrice = !j.priceOnRequest && j.totalAmount !== null && j.totalAmount !== undefined && j.totalAmount !== '' && Number(j.totalAmount) > 0;
+    return `
+      <div class="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300">${escapeHtml(j.code)}</span>
+            <span class="font-bold text-white text-sm">${escapeHtml(j.serviceName)}</span>
+            <span class="text-xs text-emerald-400 font-bold">${j.progress}% · ${escapeHtml(j.status)}</span>
+          </div>
+          <p class="text-xs text-slate-400 mt-0.5">Cliente: ${escapeHtml(j.clientName)} | Contrato: ${formatJobDate(j.contractDate)} | Vence: ${formatJobDate(j.dueDate)} | ${hasPrice ? `Pagado: ${escapeHtml(sym)}${j.paidAmount}/${j.totalAmount}` : 'Por cotizar / Sin monto fijo'}</p>
         </div>
-        <p class="text-xs text-slate-400 mt-0.5">Cliente: ${escapeHtml(j.clientName)} | Contrato: ${formatJobDate(j.contractDate)} | Vence: ${formatJobDate(j.dueDate)} | Pagado: ${escapeHtml(sym)}${j.paidAmount}/${j.totalAmount}</p>
+        <div class="flex gap-2 shrink-0">
+          <button onclick="editActiveJob('${j.id}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-sky-300">Editar</button>
+          <button onclick="deleteActiveJob('${j.id}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-500/15 text-rose-300">Eliminar</button>
+        </div>
       </div>
-      <div class="flex gap-2 shrink-0">
-        <button onclick="editActiveJob('${j.id}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-sky-300">Editar</button>
-        <button onclick="deleteActiveJob('${j.id}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-500/15 text-rose-300">Eliminar</button>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 function handleSaveActiveJob(e) {
   e.preventDefault();
+  const rawTotal = document.getElementById('job-total').value.trim();
+  const rawPaid = document.getElementById('job-paid').value.trim();
+  const priceOnRequest = rawTotal === '';
   const data = {
     code: document.getElementById('job-code').value.trim(),
     clientName: document.getElementById('job-client').value.trim(),
@@ -2344,8 +2831,9 @@ function handleSaveActiveJob(e) {
     progress: Math.min(100, Math.max(0, parseInt(document.getElementById('job-progress').value, 10) || 0)),
     status: document.getElementById('job-status').value,
     paymentMode: document.getElementById('job-payment-mode').value.trim() || 'Acordado',
-    totalAmount: parseFloat(document.getElementById('job-total').value) || 0,
-    paidAmount: parseFloat(document.getElementById('job-paid').value) || 0,
+    priceOnRequest,
+    totalAmount: priceOnRequest ? 0 : (parseFloat(rawTotal) || 0),
+    paidAmount: rawPaid === '' ? 0 : (parseFloat(rawPaid) || 0),
     notes: document.getElementById('job-notes').value.trim(),
     deliverables: [...STORE_STATE.draftJobDeliverables]
   };
@@ -2376,12 +2864,12 @@ function editActiveJob(id) {
   document.getElementById('job-progress').value = j.progress;
   document.getElementById('job-status').value = j.status;
   document.getElementById('job-payment-mode').value = j.paymentMode || '';
-  document.getElementById('job-total').value = j.totalAmount;
-  document.getElementById('job-paid').value = j.paidAmount;
+  document.getElementById('job-total').value = j.priceOnRequest ? '' : j.totalAmount;
+  document.getElementById('job-paid').value = j.priceOnRequest ? '' : j.paidAmount;
   document.getElementById('job-notes').value = j.notes || '';
   STORE_STATE.draftJobDeliverables = Array.isArray(j.deliverables) ? [...j.deliverables] : [];
   renderDraftJobDeliverablesPreview();
-  resetScrollArea();
+  scrollToCardForm('admin-job-form-card');
 }
 
 function cancelEditActiveJob() {
@@ -3015,15 +3503,30 @@ function renderAdminSponsorsList() {
     el.innerHTML = `<p class="text-xs text-slate-400">No hay patrocinadores o socios registrados.</p>`;
     return;
   }
-  el.innerHTML = STORE_STATE.sponsors.map(s => `
-    <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between gap-2 text-xs">
-      <div class="min-w-0">
-        <div class="font-bold text-white">${escapeHtml(s.name)} · <span class="text-amber-300">${escapeHtml(s.role)}</span></div>
-        <div class="text-slate-400 truncate">${escapeHtml(s.description)}</div>
+  const sym = STORE_STATE.config.currencySymbol;
+  el.innerHTML = STORE_STATE.sponsors.map(s => {
+    const priced = hasFixedPrice(s);
+    const modeLabel = formatPurchaseModeLabel(s.purchaseMode, s.purchaseDetail);
+    return `
+      <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+        <div class="min-w-0 space-y-0.5">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="font-bold text-white">${escapeHtml(s.name)}</span>
+            <span class="text-amber-300 font-semibold">${escapeHtml(s.role)}</span>
+            ${priced
+              ? `<span class="text-emerald-400 font-extrabold">${escapeHtml(sym)}${Number(s.price).toFixed(2)}</span>`
+              : `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">Sin precio / Cotizar</span>`}
+            ${modeLabel ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-200 border border-purple-500/30">${escapeHtml(modeLabel)}</span>` : ''}
+          </div>
+          <div class="text-slate-400 truncate">${escapeHtml(s.description)}</div>
+        </div>
+        <div class="flex gap-2 shrink-0">
+          <button type="button" onclick="editSponsor('${s.id}')" class="px-2.5 py-1 rounded-lg font-semibold bg-slate-800 text-sky-300">Editar</button>
+          <button type="button" onclick="deleteSponsor('${s.id}')" class="px-2.5 py-1 rounded-lg font-semibold bg-rose-500/15 text-rose-300">Eliminar</button>
+        </div>
       </div>
-      <button onclick="deleteSponsor('${s.id}')" class="px-2.5 py-1 rounded-lg font-semibold bg-rose-500/15 text-rose-300 shrink-0">Eliminar</button>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 function handleSaveSponsor(e) {
@@ -3031,17 +3534,99 @@ function handleSaveSponsor(e) {
   const name = document.getElementById('spn-name').value.trim();
   const role = document.getElementById('spn-role').value.trim();
   const url = document.getElementById('spn-url').value.trim();
+  const whatsapp = document.getElementById('spn-whatsapp')?.value.trim() || '';
   const description = document.getElementById('spn-desc').value.trim();
-  STORE_STATE.sponsors.unshift({ id: 'spn-' + Date.now(), name, role, url, description });
+  const imageUrl = document.getElementById('spn-image-url')?.value.trim() || '';
+  const purchaseMode = document.getElementById('spn-purchase-mode')?.value || 'mencion';
+  const purchaseDetail = document.getElementById('spn-purchase-detail')?.value.trim() || '';
+  const allowQuote = document.getElementById('spn-allow-quote') ? Boolean(document.getElementById('spn-allow-quote').checked) : true;
+
+  const rawPrice = document.getElementById('spn-price')?.value.trim() || '';
+  const priceOnRequestCb = document.getElementById('spn-price-on-request');
+  const priceOnRequest = Boolean((priceOnRequestCb && priceOnRequestCb.checked) || rawPrice === '');
+  const parsedPrice = priceOnRequest ? null : (Number.isFinite(parseFloat(rawPrice)) ? parseFloat(rawPrice) : null);
+
+  const data = {
+    name,
+    role,
+    url,
+    whatsapp,
+    imageUrl,
+    price: parsedPrice,
+    priceOnRequest: priceOnRequest || parsedPrice === null,
+    purchaseMode,
+    purchaseDetail,
+    allowQuote,
+    description
+  };
+
+  if (STORE_STATE.editingSponsorId) {
+    const idx = STORE_STATE.sponsors.findIndex(x => x.id === STORE_STATE.editingSponsorId);
+    if (idx !== -1) STORE_STATE.sponsors[idx] = { ...STORE_STATE.sponsors[idx], ...data };
+  } else {
+    STORE_STATE.sponsors.unshift({ id: 'spn-' + Date.now(), ...data });
+  }
   saveToStorage(STORE_STORAGE_KEYS.SPONSORS, STORE_STATE.sponsors);
-  ['spn-name', 'spn-role', 'spn-url', 'spn-desc'].forEach(id => { document.getElementById(id).value = ''; });
+  cancelEditSponsor();
   renderAdminSponsorsList();
-  showToast('Socio / Patrocinador agregado');
+  showToast('Socio / Patrocinador guardado');
+}
+
+function editSponsor(id) {
+  const s = STORE_STATE.sponsors.find(x => x.id === id);
+  if (!s) return;
+  STORE_STATE.editingSponsorId = id;
+  const titleEl = document.getElementById('admin-spn-form-title');
+  const cancelBtn = document.getElementById('admin-spn-cancel-edit');
+  if (titleEl) titleEl.textContent = 'Editar Patrocinador / Socio';
+  if (cancelBtn) cancelBtn.classList.remove('hidden');
+
+  document.getElementById('spn-name').value = s.name || '';
+  document.getElementById('spn-role').value = s.role || '';
+  document.getElementById('spn-url').value = s.url || '';
+  if (document.getElementById('spn-whatsapp')) document.getElementById('spn-whatsapp').value = s.whatsapp || '';
+  if (document.getElementById('spn-image-url')) document.getElementById('spn-image-url').value = s.imageUrl || '';
+  document.getElementById('spn-desc').value = s.description || '';
+
+  const priced = hasFixedPrice(s);
+  const priceInput = document.getElementById('spn-price');
+  const priceCb = document.getElementById('spn-price-on-request');
+  if (priceInput) {
+    priceInput.value = priced ? s.price : '';
+    priceInput.disabled = !priced;
+    priceInput.classList.toggle('opacity-50', !priced);
+  }
+  if (priceCb) priceCb.checked = !priced;
+
+  if (document.getElementById('spn-purchase-mode')) document.getElementById('spn-purchase-mode').value = s.purchaseMode || 'mencion';
+  if (document.getElementById('spn-purchase-detail')) document.getElementById('spn-purchase-detail').value = s.purchaseDetail || '';
+  if (document.getElementById('spn-allow-quote')) document.getElementById('spn-allow-quote').checked = s.allowQuote !== false;
+  updatePurchaseDetailPlaceholder('spn');
+  scrollToCardForm('admin-spn-form-card');
+}
+
+function cancelEditSponsor() {
+  STORE_STATE.editingSponsorId = null;
+  const titleEl = document.getElementById('admin-spn-form-title');
+  const cancelBtn = document.getElementById('admin-spn-cancel-edit');
+  if (titleEl) titleEl.textContent = '3. Mención de Patrocinadores y Socios';
+  if (cancelBtn) cancelBtn.classList.add('hidden');
+  ['spn-name', 'spn-role', 'spn-url', 'spn-whatsapp', 'spn-price', 'spn-purchase-detail', 'spn-image-url', 'spn-desc'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const priceInput = document.getElementById('spn-price');
+  const priceCb = document.getElementById('spn-price-on-request');
+  if (priceInput) { priceInput.disabled = false; priceInput.classList.remove('opacity-50'); }
+  if (priceCb) priceCb.checked = false;
+  if (document.getElementById('spn-purchase-mode')) document.getElementById('spn-purchase-mode').value = 'mencion';
+  if (document.getElementById('spn-allow-quote')) document.getElementById('spn-allow-quote').checked = true;
 }
 
 function deleteSponsor(id) {
   STORE_STATE.sponsors = STORE_STATE.sponsors.filter(x => x.id !== id);
   saveToStorage(STORE_STORAGE_KEYS.SPONSORS, STORE_STATE.sponsors);
+  if (STORE_STATE.editingSponsorId === id) cancelEditSponsor();
   renderAdminSponsorsList();
 }
 
@@ -3133,13 +3718,18 @@ function renderAdminReceivablesManager() {
     const due = j.dueDate ? new Date(j.dueDate + 'T00:00:00') : null;
     const isExpired = Boolean(due && !isNaN(due.getTime()) && due < today && debt > 0);
 
-    const statusTag = debt <= 0
+    const isQuoteOnly = Boolean(j.priceOnRequest && total <= 0);
+    const statusTag = isQuoteOnly
+      ? `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">Por cotizar</span>`
+      : debt <= 0
       ? `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Al día (100%)</span>`
       : isExpired
       ? `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">Vencido · Debe ${escapeHtml(sym)}${debt.toFixed(2)}</span>`
       : `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">Debe ${escapeHtml(sym)}${debt.toFixed(2)}</span>`;
 
-    const waReminder = `¡Hola *${j.clientName}*! Te recordamos tu saldo pendiente de *${sym}${debt.toFixed(2)}* (${formatBs(debt, usdRate)}) correspondiente a *${j.serviceName}* (${j.code}), con fecha límite ${formatJobDate(j.dueDate)}.`;
+    const waReminder = isQuoteOnly
+      ? `¡Hola *${j.clientName}*! Te escribimos sobre la cotización de *${j.serviceName}* (${j.code}).`
+      : `¡Hola *${j.clientName}*! Te recordamos tu saldo pendiente de *${sym}${debt.toFixed(2)}* (${formatBs(debt, usdRate)}) correspondiente a *${j.serviceName}* (${j.code}), con fecha límite ${formatJobDate(j.dueDate)}.`;
 
     return `
       <div class="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
@@ -3150,15 +3740,21 @@ function renderAdminReceivablesManager() {
             ${statusTag}
           </div>
           <div class="text-slate-300">${escapeHtml(j.serviceName)} · <span class="text-slate-400">Contrato: ${formatJobDate(j.contractDate)} | Vence: ${formatJobDate(j.dueDate)}</span></div>
-          <div class="flex flex-wrap gap-3 pt-0.5">
-            <span class="text-slate-400">Total: <strong class="text-white">${escapeHtml(sym)}${total.toFixed(2)}</strong></span>
-            <span class="text-slate-400">Pagado: <strong class="text-emerald-400">${escapeHtml(sym)}${paid.toFixed(2)}</strong></span>
-            <span class="text-slate-400">Saldo: <strong class="${debt > 0 ? 'text-rose-400' : 'text-emerald-400'}">${escapeHtml(sym)}${debt.toFixed(2)} (${formatBs(debt, usdRate)})</strong></span>
-          </div>
+          ${isQuoteOnly ? `
+            <div class="text-amber-300 font-semibold pt-0.5">Sin monto fijo asignado (por cotizar)</div>
+          ` : `
+            <div class="flex flex-wrap gap-3 pt-0.5">
+              <span class="text-slate-400">Total: <strong class="text-white">${escapeHtml(sym)}${total.toFixed(2)}</strong></span>
+              <span class="text-slate-400">Pagado: <strong class="text-emerald-400">${escapeHtml(sym)}${paid.toFixed(2)}</strong></span>
+              <span class="text-slate-400">Saldo: <strong class="${debt > 0 ? 'text-rose-400' : 'text-emerald-400'}">${escapeHtml(sym)}${debt.toFixed(2)} (${formatBs(debt, usdRate)})</strong></span>
+            </div>
+          `}
         </div>
 
         <div class="flex flex-wrap items-center gap-2 shrink-0">
-          ${debt > 0 ? `
+          ${isQuoteOnly ? `
+            <a href="${buildWhatsAppUrl(waReminder, STORE_STATE.config)}" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#25D366] hover:bg-[#1ebe5d] text-slate-950 transition">Enviar Cotización WhatsApp</a>
+          ` : debt > 0 ? `
             <a href="${buildWhatsAppUrl(waReminder, STORE_STATE.config)}" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#25D366] hover:bg-[#1ebe5d] text-slate-950 transition">Cobrar WhatsApp</a>
             <button onclick="openManualAbonoModal('${j.id}')" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white transition">+ Abono Manual</button>
             <button onclick="markJobFullyPaidAndRelease('${j.id}')" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition">Saldar 100% y Liberar</button>
@@ -3285,7 +3881,62 @@ function markJobFullyPaidAndRelease(jobId) {
 // SINCRONIZACIÓN SUPABASE + CONFIGURACIÓN DE NUBE EXTERNA DE IMÁGENES
 // ============================================================================
 
-async function syncAllFromSupabase(showFeedback = false) {
+function refreshUIWithoutDisruptingUser(onlyPaymentCheck = false) {
+  if (STORE_STATE.currentView === 'public') {
+    checkCustomerPaymentStatus(false);
+    if (onlyPaymentCheck) return;
+
+    renderCommonPublicTexts();
+    const t = STORE_STATE.publicTab;
+    if (t === 'inicio') renderHomeModule();
+    else if (t === 'catalogo') {
+      if (!isUserInteractingWithForm()) populateCatalogSelectors();
+      renderCatalog();
+    } else if (t === 'proyectos') {
+      renderProjectsModule();
+    } else if (t === 'trabajos') {
+      renderTrabajosModule();
+    } else if (t === 'pasarela') {
+      if (!hasFormInputActivityIn('pasarela-content-container')) {
+        renderPasarelaModule();
+      }
+    } else if (t === 'contacto') {
+      renderContactoModule();
+    }
+
+    if (!hasFormInputActivityIn('cart-drawer')) renderCart();
+    if (window.lucide) window.lucide.createIcons();
+    return;
+  }
+
+  if (STORE_STATE.isAdminAuthenticated) {
+    renderAdminClassificationUI();
+    renderAdminCatalogList();
+    renderAdminProjectsList();
+    renderAdminJobsList();
+    renderAdminPaymentReportsList();
+    renderAdminReceivablesManager();
+    renderAdminAccountsList();
+    renderAdminPlansList();
+    renderAdminCouponsList();
+    renderAdminSponsorsList();
+    if (!hasFormInputActivityIn('admin-panel-tienda')) {
+      const c = STORE_STATE.config;
+      const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+      setVal('cfg-brand-name', c.brandName);
+      setVal('cfg-tagline', c.tagline);
+      setVal('cfg-wa-number', c.whatsappNumber);
+      setVal('cfg-currency', c.currencySymbol);
+      setVal('cfg-hero-greeting', c.heroGreeting);
+      setVal('cfg-hero-highlight', c.heroHighlight);
+      setVal('cfg-hero-subtitle', c.heroSubtitle);
+      setVal('cfg-welcome-msg', c.welcomeMessage);
+    }
+    if (window.lucide) window.lucide.createIcons();
+  }
+}
+
+async function syncAllFromSupabase(showFeedback = false, options = {}) {
   if (!window.storeCloud || !window.storeCloud.isConnected) return false;
   const map = await window.storeCloud.pullAllFromCloud();
   if (!map) return false;
@@ -3298,7 +3949,7 @@ async function syncAllFromSupabase(showFeedback = false) {
   };
 
   applyKey(STORE_STORAGE_KEYS.CONFIG, v => { STORE_STATE.config = { ...DEFAULT_STORE_CONFIG, ...v }; });
-  applyKey(STORE_STORAGE_KEYS.CATALOG, v => { if (Array.isArray(v)) STORE_STATE.catalog = v; });
+  applyKey(STORE_STORAGE_KEYS.CATALOG, v => { if (Array.isArray(v)) STORE_STATE.catalog = loadCatalogItems(); });
   applyKey(STORE_STORAGE_KEYS.SALES_CATALOGS, v => { if (Array.isArray(v)) STORE_STATE.salesCatalogs = v; });
   applyKey(STORE_STORAGE_KEYS.CATEGORIES, v => { if (Array.isArray(v)) STORE_STATE.categories = v; });
   applyKey(STORE_STORAGE_KEYS.PROJECTS, v => { if (Array.isArray(v)) STORE_STATE.projects = v; });
@@ -3307,14 +3958,10 @@ async function syncAllFromSupabase(showFeedback = false) {
   applyKey(STORE_STORAGE_KEYS.PAYMENT_ACCOUNTS, v => { if (Array.isArray(v)) STORE_STATE.paymentAccounts = v; });
   applyKey(STORE_STORAGE_KEYS.PAYMENT_PLANS, v => { if (Array.isArray(v)) STORE_STATE.paymentPlans = v; });
   applyKey(STORE_STORAGE_KEYS.COUPONS, v => { if (Array.isArray(v)) STORE_STATE.coupons = v; });
-  applyKey(STORE_STORAGE_KEYS.SPONSORS, v => { if (Array.isArray(v)) STORE_STATE.sponsors = v; });
+  applyKey(STORE_STORAGE_KEYS.SPONSORS, v => { if (Array.isArray(v)) STORE_STATE.sponsors = loadSponsors(); });
 
-  if (STORE_STATE.currentView === 'public') {
-    switchPublicTab(STORE_STATE.publicTab);
-    checkCustomerPaymentStatus(false);
-  } else if (STORE_STATE.isAdminAuthenticated) {
-    renderAdminView();
-  }
+  // Actualizar vistas SIN resetear scroll ni interrumpir escritura en formularios
+  refreshUIWithoutDisruptingUser(Boolean(options.onlyPaymentCheck));
 
   if (showFeedback) showToast('Datos sincronizados con Supabase');
   return true;

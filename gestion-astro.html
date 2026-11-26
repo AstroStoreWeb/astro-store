@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es" class="dark">
 <head>
   <meta charset="UTF-8" />
@@ -13,11 +13,11 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
-<body data-page="admin" class="h-[100dvh] w-screen overflow-hidden flex flex-col selection:bg-sky-500 selection:text-white">
+<body data-page="admin" class="min-h-screen lg:h-[100dvh] w-full overflow-x-hidden lg:overflow-hidden flex flex-col selection:bg-sky-500 selection:text-white">
   <div class="glow-blob w-80 h-80 bg-sky-500 top-0 -left-20"></div>
   <div class="glow-blob w-80 h-80 bg-blue-600 bottom-10 right-0"></div>
   <div id="toast-container" class="fixed top-20 right-4 left-4 sm:left-auto z-50 flex flex-col gap-2 sm:max-w-sm pointer-events-none"></div>
-  <header class="glass-nav shrink-0 z-40">
+  <header class="glass-nav sticky top-0 lg:static shrink-0 z-40">
     <div class="max-w-[1440px] mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-3">
       <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
         <img src="assets/logo.png" alt="Logo Astro Store" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl shadow-md border border-white/10 object-cover shrink-0" />
@@ -32,12 +32,12 @@
       <div id="navbar-actions-container" class="flex items-center gap-2 shrink-0"></div>
     </div>
   </header>
-  <div class="flex-1 min-h-0 max-w-[1440px] w-full mx-auto px-3 sm:px-6 py-4 flex gap-5 relative z-10 overflow-hidden">
+  <div class="flex-1 lg:min-h-0 max-w-[1440px] w-full mx-auto px-3 sm:px-6 py-4 flex gap-5 relative z-10 lg:overflow-hidden">
     <aside class="hidden lg:flex flex-col justify-between items-center w-16 shrink-0 py-1">
       <div id="sidebar-top-icons" class="sidebar-rail rounded-full p-2 flex flex-col items-center gap-2.5 shadow-xl"></div>
       <div id="sidebar-bottom-icons" class="sidebar-rail rounded-full p-2 flex flex-col items-center gap-2.5 shadow-xl"></div>
     </aside>
-    <div id="main-scroll-area" class="flex-1 min-w-0 h-full hover-scroll pr-1 pb-24 lg:pb-6">
+    <div id="main-scroll-area" class="flex-1 min-w-0 lg:h-full hover-scroll lg:pr-1 pb-28 lg:pb-6">
       <!-- ====================================================================
            VISTA 2: PANEL ADMINISTRATIVO (4 MÓDULOS INDEPENDIENTES)
            ==================================================================== -->
@@ -100,10 +100,10 @@
               </div>
             </div>
 
-            <div class="bento-card p-6 border border-sky-500/30">
+            <div id="admin-item-form-card" class="bento-card p-6 border border-sky-500/30">
               <div class="flex items-center justify-between mb-4">
                 <h3 id="admin-item-form-title" class="text-base font-extrabold text-white">3. Agregar Producto o Servicio</h3>
-                <button id="admin-item-cancel-edit" onclick="cancelEditCatalogItem()" class="hidden text-xs text-slate-400 hover:text-white">Cancelar edición</button>
+                <button id="admin-item-cancel-edit" type="button" onclick="cancelEditCatalogItem()" class="hidden text-xs text-slate-400 hover:text-white">Cancelar edición</button>
               </div>
               <form onsubmit="handleSaveCatalogItem(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <input id="item-name" type="text" required placeholder="Nombre *" class="lg:col-span-2 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
@@ -113,9 +113,25 @@
                   <option value="servicio">Servicio</option>
                 </select>
                 <select id="item-category" required class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700"></select>
-                <input id="item-price" type="number" step="0.01" min="0" required placeholder="Precio ($) *" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
-                <input id="item-badge" type="text" placeholder="Etiqueta (ej. Nuevo)" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
-                <select id="item-icon" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700">
+                <div class="space-y-1.5">
+                  <input id="item-price" type="number" step="0.01" min="0" placeholder="Precio ($) — opcional" oninput="syncPriceOnRequestState('item')" class="w-full bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                  <label class="inline-flex items-center gap-1.5 text-[11px] text-amber-300 cursor-pointer select-none">
+                    <input id="item-price-on-request" type="checkbox" onchange="togglePriceOnRequest('item')" class="accent-amber-400 w-3.5 h-3.5 rounded" />
+                    <span>Sin precio (pedir info / cotizar por WhatsApp)</span>
+                  </label>
+                </div>
+                <select id="item-purchase-mode" onchange="updatePurchaseDetailPlaceholder('item')" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700">
+                  <option value="unidad">Modalidad: Por Unidad</option>
+                  <option value="cantidad">Modalidad: Por Cantidad</option>
+                  <option value="lote">Modalidad: Por Lote / Paquete</option>
+                  <option value="suscripcion">Modalidad: Suscripción</option>
+                  <option value="servicio">Modalidad: Por Proyecto / Servicio</option>
+                  <option value="cotizacion">Modalidad: Bajo Cotización</option>
+                  <option value="personalizado">Modalidad: Personalizada</option>
+                </select>
+                <input id="item-purchase-detail" type="text" placeholder="Detalle (ej. Mín. 5 uds, Lote x12, Mensual)" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                <input id="item-badge" type="text" placeholder="Etiqueta (ej. Nuevo, Mayorista)" class="sm:col-span-2 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                <select id="item-icon" class="sm:col-span-2 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700">
                   <option value="shopping-bag">Icono: Bolsa</option>
                   <option value="layout-grid">Icono: Web / Diseño</option>
                   <option value="smartphone">Icono: App / Móvil</option>
@@ -142,9 +158,9 @@
                 </div>
 
                 <!-- SELECTOR DE TIPOS DE PAGO PERMITIDOS PARA ESTE PRODUCTO/SERVICIO -->
-                <div class="sm:col-span-2 lg:col-span-4 p-4 rounded-2xl bg-slate-950/90 border border-sky-500/30 space-y-2">
-                  <div class="text-xs font-bold text-sky-300">Tipos de pago habilitados para este producto/servicio *</div>
-                  <p class="text-[11px] text-slate-400">Marca únicamente las modalidades que el cliente podrá usar para pagar este artículo.</p>
+                <div id="item-plans-section" class="sm:col-span-2 lg:col-span-4 p-4 rounded-2xl bg-slate-950/90 border border-sky-500/30 space-y-2">
+                  <div class="text-xs font-bold text-sky-300">Tipos de pago habilitados para este producto/servicio <span class="text-slate-400 font-normal">(opcional si es sin precio / a cotizar)</span></div>
+                  <p class="text-[11px] text-slate-400">Si colocas un precio fijo, marca las modalidades de pago disponibles. Si lo dejas sin precio, el cliente podrá pedir información o cotización directa por WhatsApp.</p>
                   <div id="item-allowed-plans-container" class="flex flex-wrap gap-2 pt-1"></div>
                 </div>
 
@@ -160,10 +176,10 @@
 
           <!-- MÓDULO ADMIN 1.5: PROYECTOS REALIZADOS (PORTAFOLIO) -->
           <div id="admin-panel-proyectos" class="hidden space-y-5 animate-fade-in">
-            <div class="bento-card p-6 border border-indigo-500/30">
+            <div id="admin-prj-form-card" class="bento-card p-6 border border-indigo-500/30">
               <div class="flex items-center justify-between mb-4">
                 <h3 id="admin-prj-form-title" class="text-base font-extrabold text-white">Agregar Trabajo / Proyecto Realizado</h3>
-                <button id="admin-prj-cancel-edit" onclick="cancelEditProject()" class="hidden text-xs text-slate-400 hover:text-white">Cancelar edición</button>
+                <button id="admin-prj-cancel-edit" type="button" onclick="cancelEditProject()" class="hidden text-xs text-slate-400 hover:text-white">Cancelar edición</button>
               </div>
               <form onsubmit="handleSaveProject(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <input id="prj-title" type="text" required placeholder="Título del proyecto *" class="lg:col-span-2 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
@@ -172,6 +188,18 @@
                 <input id="prj-category" type="text" required placeholder="Categoría (ej. Desarrollo Web) *" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
                 <input id="prj-status" type="text" required placeholder="Estado (ej. Completado)" value="Completado" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
                 <input id="prj-tags" type="text" placeholder="Etiquetas separadas por coma (ej. Web, POS)" class="sm:col-span-2 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                <input id="prj-price" type="number" step="0.01" min="0" placeholder="Precio ref. ($) — opcional (vacío = cotizar)" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                <select id="prj-purchase-mode" onchange="updatePurchaseDetailPlaceholder('prj')" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700">
+                  <option value="">Modalidad (opcional)</option>
+                  <option value="cotizacion">Bajo Cotización</option>
+                  <option value="servicio">Por Proyecto / Servicio</option>
+                  <option value="unidad">Por Unidad</option>
+                  <option value="cantidad">Por Cantidad</option>
+                  <option value="lote">Por Lote / Paquete</option>
+                  <option value="suscripcion">Suscripción</option>
+                  <option value="personalizado">Personalizada</option>
+                </select>
+                <input id="prj-purchase-detail" type="text" placeholder="Detalle modalidad (ej. Mensual, Paquete)" class="sm:col-span-2 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
                 <input id="prj-url" type="url" placeholder="Enlace de demostración (opcional)" class="sm:col-span-2 lg:col-span-4 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
                 <textarea id="prj-summary" rows="2" required placeholder="Resumen corto del trabajo *" class="sm:col-span-2 lg:col-span-4 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700"></textarea>
                 <textarea id="prj-details" rows="3" placeholder="Detalles técnicos / Logros / Qué se implementó" class="sm:col-span-2 lg:col-span-4 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700"></textarea>
@@ -203,7 +231,7 @@
 
           <!-- MÓDULO ADMIN 1.75: GESTIÓN DE TRABAJOS Y SERVICIOS ACTIVOS -->
           <div id="admin-panel-trabajos" class="hidden space-y-5 animate-fade-in">
-            <div class="bento-card p-6 border border-sky-500/30">
+            <div id="admin-job-form-card" class="bento-card p-6 border border-sky-500/30">
               <div class="flex items-center justify-between mb-4">
                 <h3 id="admin-job-form-title" class="text-base font-extrabold text-white">Registrar / Actualizar Trabajo o Servicio Activo</h3>
                 <button id="admin-job-cancel-edit" onclick="cancelEditActiveJob()" class="hidden text-xs text-slate-400 hover:text-white">Cancelar edición</button>
@@ -234,9 +262,9 @@
                     <option value="Vencido / Cancelado">Vencido / Cancelado</option>
                   </select>
                 </div>
-                <input id="job-payment-mode" type="text" placeholder="Modalidad de pago (ej. 50%/50%)" class="sm:col-span-2 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
-                <input id="job-total" type="number" step="0.01" min="0" required placeholder="Monto total ($) *" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
-                <input id="job-paid" type="number" step="0.01" min="0" required placeholder="Abonado / Pagado ($) *" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                <input id="job-payment-mode" type="text" placeholder="Modalidad (ej. 50%/50%, Por lote, Suscripción)" class="sm:col-span-2 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                <input id="job-total" type="number" step="0.01" min="0" placeholder="Monto total ($) — opcional (vacío = por cotizar)" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                <input id="job-paid" type="number" step="0.01" min="0" placeholder="Abonado / Pagado ($) — opcional" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
                 <textarea id="job-notes" rows="2" placeholder="Notas del avance para el cliente..." class="sm:col-span-2 lg:col-span-4 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700"></textarea>
 
                 <!-- ENTREGABLES / AVANCES DEL TRABAJO (IMÁGENES, PDF O NUBES EXTERNAS) -->
@@ -436,17 +464,47 @@
             </div>
 
             <!-- 3. Patrocinadores y Socios -->
-            <div class="bento-card p-6 border border-amber-500/30 space-y-4">
-              <div>
-                <h3 class="text-base font-extrabold text-white">3. Mención de Patrocinadores y Socios</h3>
-                <p class="text-xs text-slate-400">Agrega socios o patrocinadores visibles en la pantalla de Inicio.</p>
+            <div id="admin-spn-form-card" class="bento-card p-6 border border-amber-500/30 space-y-4">
+              <div class="flex items-center justify-between gap-2">
+                <div>
+                  <h3 id="admin-spn-form-title" class="text-base font-extrabold text-white">3. Mención de Patrocinadores y Socios</h3>
+                  <p class="text-xs text-slate-400">Agrega socios o patrocinadores visibles en Inicio. Puedes colocar un precio opcional, modalidad (unidad, cantidad, lote, suscripción, membresía) y botón de info/cotización por WhatsApp.</p>
+                </div>
+                <button id="admin-spn-cancel-edit" type="button" onclick="cancelEditSponsor()" class="hidden text-xs text-slate-400 hover:text-white shrink-0">Cancelar edición</button>
               </div>
               <form onsubmit="handleSaveSponsor(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <input id="spn-name" type="text" required placeholder="Nombre del Socio / Marca *" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
                 <input id="spn-role" type="text" required placeholder="Rol (ej. Socio Oficial) *" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
-                <input id="spn-url" type="url" placeholder="Enlace web / red social (opcional)" class="sm:col-span-2 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
-                <input id="spn-desc" type="text" required placeholder="Breve mención o beneficio *" class="sm:col-span-2 lg:col-span-3 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
-                <button type="submit" class="py-2.5 px-5 rounded-xl font-bold text-slate-950 bg-amber-400 hover:bg-amber-300">Agregar Socio</button>
+                <input id="spn-url" type="url" placeholder="Enlace web / red social (opcional)" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                <input id="spn-whatsapp" type="text" placeholder="WhatsApp socio (opcional, usa el de la tienda)" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+
+                <div class="space-y-1.5">
+                  <input id="spn-price" type="number" step="0.01" min="0" placeholder="Precio ($) — opcional" oninput="syncPriceOnRequestState('spn')" class="w-full bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                  <label class="inline-flex items-center gap-1.5 text-[11px] text-amber-300 cursor-pointer select-none">
+                    <input id="spn-price-on-request" type="checkbox" onchange="togglePriceOnRequest('spn')" class="accent-amber-400 w-3.5 h-3.5 rounded" />
+                    <span>Sin precio (pedir info / cotizar por WhatsApp)</span>
+                  </label>
+                </div>
+                <select id="spn-purchase-mode" onchange="updatePurchaseDetailPlaceholder('spn')" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700">
+                  <option value="mencion">Modalidad: Solo mención / Aliado</option>
+                  <option value="unidad">Modalidad: Por Unidad</option>
+                  <option value="cantidad">Modalidad: Por Cantidad</option>
+                  <option value="lote">Modalidad: Por Lote / Paquete</option>
+                  <option value="suscripcion">Modalidad: Suscripción</option>
+                  <option value="membresia">Modalidad: Membresía / Plan Socio</option>
+                  <option value="cotizacion">Modalidad: Bajo Cotización</option>
+                  <option value="personalizado">Modalidad: Personalizada</option>
+                </select>
+                <input id="spn-purchase-detail" type="text" placeholder="Detalle (ej. Mensual, Lote x10, Plan VIP)" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                <input id="spn-image-url" type="url" placeholder="Logo / Foto URL del socio (opcional)" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+
+                <input id="spn-desc" type="text" required placeholder="Breve mención, productos o beneficio *" class="sm:col-span-2 lg:col-span-4 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+
+                <label class="sm:col-span-2 lg:col-span-3 inline-flex items-center gap-2 text-xs text-emerald-300 cursor-pointer select-none">
+                  <input id="spn-allow-quote" type="checkbox" checked class="accent-emerald-500 w-4 h-4 rounded" />
+                  <span>Mostrar botón de "Pedir Info / Cotizar por WhatsApp" en la tarjeta del socio</span>
+                </label>
+                <button id="admin-spn-submit-btn" type="submit" class="py-2.5 px-5 rounded-xl font-bold text-slate-950 bg-amber-400 hover:bg-amber-300">Guardar Socio</button>
               </form>
               <div id="admin-sponsors-list" class="space-y-2 pt-2"></div>
             </div>

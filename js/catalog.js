@@ -102,13 +102,23 @@ function loadStoreConfig() {
 function loadCatalogItems() {
   const data = loadFromStorage(STORE_STORAGE_KEYS.CATALOG, DEFAULT_CATALOG_ITEMS);
   if (!Array.isArray(data)) return [];
-  return data.map(item => ({
-    ...item,
-    salesCatalogId: item.salesCatalogId || '',
-    allowedPlanIds: Array.isArray(item.allowedPlanIds) && item.allowedPlanIds.length
-      ? item.allowedPlanIds
-      : ['plan-contado']
-  }));
+  return data.map(item => {
+    const rawPrice = item.price;
+    const isMissingPrice = rawPrice === null || rawPrice === undefined || rawPrice === '';
+    const priceOnRequest = Boolean(item.priceOnRequest || isMissingPrice);
+    const parsedPrice = priceOnRequest ? null : (Number.isFinite(Number(rawPrice)) ? Number(rawPrice) : null);
+    return {
+      ...item,
+      price: parsedPrice,
+      priceOnRequest: priceOnRequest || parsedPrice === null,
+      purchaseMode: item.purchaseMode || 'unidad',
+      purchaseDetail: item.purchaseDetail || '',
+      salesCatalogId: item.salesCatalogId || '',
+      allowedPlanIds: Array.isArray(item.allowedPlanIds) && item.allowedPlanIds.length
+        ? item.allowedPlanIds
+        : (priceOnRequest ? [] : ['plan-contado'])
+    };
+  });
 }
 
 function loadSalesCatalogs() {
@@ -147,7 +157,21 @@ function loadCoupons() {
 
 function loadSponsors() {
   const data = loadFromStorage(STORE_STORAGE_KEYS.SPONSORS, DEFAULT_SPONSORS);
-  return Array.isArray(data) ? data : [];
+  if (!Array.isArray(data)) return [];
+  return data.map(s => {
+    const rawPrice = s.price;
+    const hasPrice = rawPrice !== null && rawPrice !== undefined && rawPrice !== '' && Number.isFinite(Number(rawPrice));
+    return {
+      ...s,
+      price: s.priceOnRequest ? null : (hasPrice ? Number(rawPrice) : null),
+      priceOnRequest: Boolean(s.priceOnRequest || !hasPrice),
+      purchaseMode: s.purchaseMode || 'mencion',
+      purchaseDetail: s.purchaseDetail || '',
+      whatsapp: s.whatsapp || '',
+      imageUrl: s.imageUrl || '',
+      allowQuote: s.allowQuote !== false
+    };
+  });
 }
 
 // ============================================================================

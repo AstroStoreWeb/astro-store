@@ -23,23 +23,58 @@ html, body {
   margin: 0;
   padding: 0;
   width: 100%;
-  height: 100%;
-  height: 100dvh;
-  overflow: hidden;
+  min-height: 100%;
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overflow-anchor: auto;
+  -webkit-overflow-scrolling: touch;
   -webkit-tap-highlight-color: transparent;
+}
+
+@media (min-width: 1024px) {
+  html, body {
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+  }
 }
 
 /* ==========================================================================
    SCROLLERS OCULTOS POR DEFECTO — VISIBLES AL PASAR EL MOUSE (Y FLUIDOS EN ANDROID)
    ========================================================================== */
 .hover-scroll {
+  overflow-y: visible;
+  overflow-x: hidden;
+  overflow-anchor: auto;
+}
+
+@media (min-width: 1024px) {
+  .hover-scroll {
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 0.2s ease;
+  }
+}
+
+/* Modales y drawers siempre mantienen scroll interno propio en móvil y desktop */
+#cart-drawer .hover-scroll,
+#item-detail-modal .hover-scroll {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-  transition: scrollbar-color 0.2s ease;
+}
+
+/* Ocultar barra flotante inferior móvil cuando se abre el teclado virtual */
+body.keyboard-open .mobile-pill-nav {
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 120%);
 }
 
 .hover-scroll:hover {
@@ -989,6 +1024,7 @@ html, body {
   justify-content: space-around;
   padding: 0 0.65rem;
   z-index: 40;
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
 .mobile-pill-nav::before {
