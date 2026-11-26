@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Astro Store — Tienda Digital & Pasarela de Pagos</title>
+  <meta name="description" content="Tienda digital modular con pasarela de pagos configurada por producto y atención directa por WhatsApp." />
+  <link rel="icon" type="image/png" href="assets/logo.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="h-[100dvh] w-screen overflow-hidden flex flex-col selection:bg-sky-500 selection:text-white">
+
+  <div class="glow-blob w-80 h-80 bg-sky-500 top-0 -left-20"></div>
+  <div class="glow-blob w-80 h-80 bg-blue-600 bottom-10 right-0"></div>
+
+  <div id="toast-container" class="fixed top-20 right-4 left-4 sm:left-auto z-50 flex flex-col gap-2 sm:max-w-sm pointer-events-none"></div>
+
+  <!-- ========================================================================
+       HEADER SUPERIOR FIJO
+       ======================================================================== -->
+  <header class="glass-nav shrink-0 z-40">
+    <div class="max-w-[1440px] mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-3">
+      <!-- Marca -->
+      <div class="flex items-center gap-2.5 sm:gap-3 min-w-0 select-none" title="Astro Store">
+        <img src="assets/logo.png" alt="Logo Astro Store" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl shadow-md border border-white/10 object-cover shrink-0 pointer-events-none" />
+        <div class="pointer-events-none min-w-0">
+          <div class="text-[11px] text-slate-400 leading-none mb-0.5 truncate" id="navbar-subtitle">Tienda Digital</div>
+          <div class="flex items-center gap-2">
+            <span class="dyn-brand-name font-extrabold text-sm sm:text-lg tracking-tight text-white leading-none truncate">Astro Store</span>
+            <span id="navbar-mode-badge" class="hidden sm:inline-block px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">En línea</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Buscador Central -->
+      <div id="header-search-wrap" class="hidden md:flex flex-1 max-w-xs">
+        <div class="relative w-full">
+          <i data-lucide="search" class="w-4 h-4 text-[#8707ff] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+          <input id="catalog-search" type="text" oninput="handleCatalogSearch(this.value)" placeholder="Buscar producto o servicio..." class="uiverse-search-input" />
+        </div>
+      </div>
+
+      <!-- Acciones Derecha -->
+      <div id="navbar-actions-container" class="flex items-center gap-2 shrink-0"></div>
+    </div>
+  </header>
+
+  <!-- ========================================================================
+       SHELL PRINCIPAL DEL DASHBOARD (RAIL IZQUIERDO + MÓDULO ACTIVO CON HOVER-SCROLL)
+       ======================================================================== -->
+  <div class="flex-1 min-h-0 max-w-[1440px] w-full mx-auto px-3 sm:px-6 py-4 flex gap-5 relative z-10 overflow-hidden">
+
+    <!-- RAIL VERTICAL IZQUIERDO (Desktop) -->
+    <aside class="hidden lg:flex flex-col justify-between items-center w-16 shrink-0 py-1">
+      <div id="sidebar-top-icons" class="sidebar-rail rounded-full p-2 flex flex-col items-center gap-2.5 shadow-xl"></div>
+      <div id="sidebar-bottom-icons" class="sidebar-rail rounded-full p-2 flex flex-col items-center gap-2.5 shadow-xl"></div>
+    </aside>
+
+    <!-- ÁREA DE MÓDULOS INDEPENDIENTES (SCROLLER OCULTO HASTA HOVER) -->
+    <div id="main-scroll-area" class="flex-1 min-w-0 h-full hover-scroll pr-1 pb-24 lg:pb-6">
+
+      <!-- ====================================================================
+           VISTA 1: TIENDA DIGITAL (4 MÓDULOS INDEPENDIENTES)
+           ==================================================================== -->
+      <main id="view-public" class="w-full">
+
+        <!-- MÓDULO 1: INICIO / DASHBOARD -->
+        <section id="pub-panel-inicio" class="space-y-6 animate-fade-in">
+          <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+            <div>
+              <h1 class="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
+                <span id="dyn-hero-greeting">Bienvenido a</span>
+                <span id="dyn-hero-highlight" class="text-astro-gradient">Astro Store</span>
+              </h1>
+              <p id="dyn-hero-subtitle" class="text-sm text-slate-400 mt-1 max-w-2xl"></p>
+            </div>
+
+            <!-- Selector Rápido de Catálogo de Venta y Categoría (en lugar de la barra anterior) -->
+            <div class="bento-card px-3 py-2.5 w-full xl:w-auto flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0">
+              <div class="flex items-center gap-1.5 text-xs text-sky-300 font-bold pl-1 whitespace-nowrap">
+                <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+                <span>Explorar:</span>
+              </div>
+              <select id="home-select-sales-catalog" onchange="jumpToCatalogFromHome()" class="flex-1 sm:flex-none min-w-0 bg-slate-900 text-white text-xs font-semibold px-3 py-2 rounded-full border border-slate-700 focus:outline-none focus:border-sky-500">
+                <option value="todos">Todos los Catálogos</option>
+              </select>
+              <select id="home-select-category" onchange="jumpToCatalogFromHome()" class="flex-1 sm:flex-none min-w-0 bg-slate-900 text-white text-xs font-semibold px-3 py-2 rounded-full border border-slate-700 focus:outline-none focus:border-sky-500">
+                <option value="todas">Todas las Categorías</option>
+              </select>
+              <button onclick="jumpToCatalogFromHome()" class="w-full sm:w-auto px-4 py-2 rounded-full text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white shadow transition whitespace-nowrap">
+                Buscar
+              </button>
+            </div>
+          </div>
+
+          <!-- BENTO GRID SUPERIOR -->
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <!-- Bento 1: Resumen -->
+            <div class="lg:col-span-4 bento-card p-5 flex flex-col justify-between">
+              <div>
+                <div class="text-xs font-semibold text-slate-400">Catálogo Disponible</div>
+                <div class="flex items-baseline gap-2 mt-1">
+                  <span id="public-stat-count" class="text-3xl font-extrabold text-white">0</span>
+                  <span class="text-xs text-slate-400">productos y servicios</span>
+                </div>
+              </div>
+              <div class="mt-5 grid grid-cols-3 gap-2 items-end h-20 pt-2">
+                <div class="bg-sky-500/20 border border-sky-500/30 rounded-t-xl h-10 flex items-center justify-center text-[10px] font-bold text-sky-300">Contado</div>
+                <div class="bg-indigo-500/25 border border-indigo-500/30 rounded-t-xl h-14 flex items-center justify-center text-[10px] font-bold text-indigo-300">Partes</div>
+                <div class="bg-emerald-500/25 border border-emerald-500/30 rounded-t-xl h-20 flex items-center justify-center text-[10px] font-bold text-emerald-300">Abonos</div>
+              </div>
+              <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between">
+                <span>Planes configurados: <strong id="public-stat-plans" class="text-white">3</strong></span>
+                <button onclick="switchPublicTab('catalogo')" class="text-sky-400 font-semibold hover:underline">Explorar &rarr;</button>
+              </div>
+            </div>
+
+            <!-- Bento 2: Widget Dólar BCV Oficial en Vivo -->
+            <div class="lg:col-span-4 bg-astro-gradient rounded-3xl p-5 text-white shadow-2xl shadow-sky-600/25 flex flex-col justify-between">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xs font-bold uppercase tracking-wider text-sky-100">Dólar BCV Oficial</span>
+                <span id="bcv-usd-status" class="px-2.5 py-0.5 rounded-full bg-white/20 text-[10px] font-bold flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse"></span>
+                  <span>En vivo</span>
+                </span>
+              </div>
+              <div class="my-4">
+                <div class="text-xs text-sky-100">1 USD ($) equivale a</div>
+                <div id="bento-bcv-usd" class="text-3xl font-extrabold tracking-tight mt-0.5">Bs. --</div>
+                <div id="bento-bcv-updated" class="text-[11px] text-sky-100/80 mt-1">Sincronizando tasa oficial BCV...</div>
+              </div>
+              <div class="flex items-center justify-between gap-2 pt-3 border-t border-white/20">
+                <button onclick="syncBcvRates(true)" class="px-3.5 py-2 rounded-xl bg-white text-slate-950 text-xs font-extrabold hover:bg-sky-50 transition flex items-center gap-1.5">
+                  <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                  <span>Actualizar BCV</span>
+                </button>
+                <button onclick="switchPublicTab('pasarela')" class="px-3.5 py-2 rounded-xl bg-slate-950/30 hover:bg-slate-950/50 text-white text-xs font-bold transition flex items-center gap-1.5">
+                  <i data-lucide="wallet" class="w-3.5 h-3.5"></i>
+                  <span>Ir a Pagar</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Bento 3: Widget Euro BCV Oficial en Vivo -->
+            <div class="lg:col-span-4 bento-card p-5 flex flex-col justify-between border border-indigo-500/25">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xs font-bold uppercase tracking-wider text-indigo-300">Euro BCV Oficial</span>
+                <span class="px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 text-[10px] font-bold">BCV EUR</span>
+              </div>
+              <div class="my-4">
+                <div class="text-xs text-slate-400">1 EUR (€) equivale a</div>
+                <div id="bento-bcv-eur" class="text-3xl font-extrabold text-white tracking-tight mt-0.5">Bs. --</div>
+                <div class="text-[11px] text-slate-400 mt-1">Referencia oficial emitida por el Banco Central de Venezuela</div>
+              </div>
+              <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
+                <span class="text-slate-400">Conversión en productos:</span>
+                <span class="text-emerald-400 font-bold">USD &rarr; Bs. automática</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Modo Portafolio: Trabajos Realizados -->
+          <div class="bento-card p-5 space-y-4">
+            <div class="flex items-center justify-between gap-2">
+              <div>
+                <h2 class="text-base font-extrabold text-white">Portafolio — Trabajos Realizados</h2>
+                <p class="text-xs text-slate-400">Proyectos reales desarrollados para clientes y negocios</p>
+              </div>
+              <button onclick="switchPublicTab('proyectos')" class="text-xs font-bold text-sky-400 hover:text-sky-300 shrink-0">Ver todos los proyectos &rarr;</button>
+            </div>
+            <div id="home-portfolio-grid" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+          </div>
+
+          <!-- Patrocinadores y Socios Oficiales -->
+          <div id="home-sponsors-section" class="bento-card p-5 space-y-3 border border-indigo-500/20">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <i data-lucide="award" class="w-4 h-4 text-amber-400"></i>
+                <h2 class="text-sm font-extrabold text-white">Patrocinadores y Socios</h2>
+              </div>
+              <span class="text-[11px] text-slate-400">Aliados de la tienda</span>
+            </div>
+            <div id="home-sponsors-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+          </div>
+        </section>
+
+        <!-- MÓDULO 2: CATÁLOGO INDEPENDIENTE -->
+        <section id="pub-panel-catalogo" class="hidden space-y-5 animate-fade-in">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <h2 class="text-2xl font-extrabold text-white">Catálogo de Productos y Servicios</h2>
+              <p class="text-xs sm:text-sm text-slate-400">Cada producto o servicio muestra las modalidades de pago asignadas.</p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <select id="filter-sales-catalog" onchange="setSalesCatalogFilter(this.value)" class="flex-1 sm:flex-none min-w-0 bg-slate-900/90 text-white text-xs font-semibold px-3.5 py-2 rounded-full border border-slate-700 focus:outline-none focus:border-sky-500">
+                <option value="todos">Todos los Catálogos</option>
+              </select>
+              <select id="filter-category-select" onchange="setCategoryFilter(this.value)" class="flex-1 sm:flex-none min-w-0 bg-slate-900/90 text-white text-xs font-semibold px-3.5 py-2 rounded-full border border-slate-700 focus:outline-none focus:border-sky-500">
+                <option value="todas">Todas las Categorías</option>
+              </select>
+              <div class="w-full sm:w-auto flex items-center justify-center gap-1 bg-slate-900/90 p-1 rounded-full border border-slate-800">
+                <button id="filter-btn-todos" onclick="setCatalogFilter('todos')" class="flex-1 sm:flex-none px-4 py-1.5 rounded-full text-xs font-bold bg-sky-600 text-white transition">Todos</button>
+                <button id="filter-btn-producto" onclick="setCatalogFilter('producto')" class="flex-1 sm:flex-none px-4 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white transition">Productos</button>
+                <button id="filter-btn-servicio" onclick="setCatalogFilter('servicio')" class="flex-1 sm:flex-none px-4 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white transition">Servicios</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Buscador móvil dentro de Catálogo -->
+          <div class="md:hidden relative">
+            <i data-lucide="search" class="w-4 h-4 text-[#8707ff] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+            <input id="catalog-search-mobile" type="text" oninput="handleCatalogSearch(this.value)" placeholder="Buscar producto o servicio..." class="uiverse-search-input" />
+          </div>
+
+          <div id="catalog-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
+        </section>
+
+        <!-- MÓDULO 2.5: PROYECTOS / PORTAFOLIO INDEPENDIENTE -->
+        <section id="pub-panel-proyectos" class="hidden space-y-5 animate-fade-in">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 class="text-2xl font-extrabold text-white">Proyectos Realizados (Portafolio)</h2>
+              <p class="text-xs sm:text-sm text-slate-400">Explora los trabajos, sistemas y diseños entregados.</p>
+            </div>
+            <button onclick="switchPublicTab('contacto')" class="px-4 py-2 rounded-xl text-xs font-bold bg-[#25D366] text-slate-950 hover:bg-[#1ebe5d] transition flex items-center gap-1.5">
+              <i data-lucide="send" class="w-3.5 h-3.5"></i>
+              <span>Cotizar un proyecto similar</span>
+            </button>
+          </div>
+
+          <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
+        </section>
+
+        <!-- MÓDULO 2.75: TRABAJOS Y SERVICIOS ACTIVOS (CONTRATO, PROGRESO Y VENCIMIENTO) -->
+        <section id="pub-panel-trabajos" class="hidden space-y-5 animate-fade-in">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <h2 class="text-2xl font-extrabold text-white">Trabajos y Servicios Activos</h2>
+              <p class="text-xs sm:text-sm text-slate-400">Consulta el avance, fecha de contrato, tiempo restante y fecha de vencimiento de cada servicio.</p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <div class="relative flex-1 sm:flex-none min-w-[210px]">
+                <i data-lucide="search" class="w-4 h-4 text-[#8707ff] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                <input id="job-search-input" type="text" oninput="handleJobSearch(this.value)" placeholder="Buscar código o cliente..." class="uiverse-search-input" />
+              </div>
+              <div class="flex items-center gap-1 bg-slate-900/90 p-1 rounded-full border border-slate-800 overflow-x-auto hover-scroll-x">
+                <button id="job-filter-todos" onclick="setJobStatusFilter('todos')" class="px-3.5 py-1.5 rounded-full text-xs font-bold bg-sky-600 text-white whitespace-nowrap">Todos</button>
+                <button id="job-filter-En progreso" onclick="setJobStatusFilter('En progreso')" class="px-3.5 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white whitespace-nowrap">En progreso</button>
+                <button id="job-filter-Esperando abono" onclick="setJobStatusFilter('Esperando abono')" class="px-3.5 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white whitespace-nowrap">Por abonar</button>
+                <button id="job-filter-Completado" onclick="setJobStatusFilter('Completado')" class="px-3.5 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white whitespace-nowrap">Completados</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="active-jobs-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
+        </section>
+
+        <!-- MÓDULO 3: PASARELA DE PAGO INDEPENDIENTE -->
+        <section id="pub-panel-pasarela" class="hidden space-y-5 animate-fade-in">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 class="text-2xl font-extrabold text-white">Pasarela de Pago Directa</h2>
+              <p class="text-xs sm:text-sm text-slate-400">Sin tarjetas: elige una modalidad permitida para tu pedido y reporta tu pago por WhatsApp.</p>
+            </div>
+            <button onclick="switchPublicTab('catalogo')" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+              &larr; Seguir viendo catálogo
+            </button>
+          </div>
+
+          <div id="pasarela-content-container" class="grid grid-cols-1 lg:grid-cols-12 gap-5"></div>
+        </section>
+
+        <!-- MÓDULO 4: CONTACTO DIRECTO / WHATSAPP -->
+        <section id="pub-panel-contacto" class="hidden space-y-5 animate-fade-in">
+          <div>
+            <h2 class="text-2xl font-extrabold text-white">Contacto Directo por WhatsApp</h2>
+            <p class="text-xs sm:text-sm text-slate-400">¿Necesitas un servicio a la medida o aclarar dudas? Escríbenos directamente.</p>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <div class="lg:col-span-8 bento-card p-6 border border-sky-500/20">
+              <form onsubmit="handleCustomWhatsAppInquiry(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-300 mb-1.5">Tu nombre *</label>
+                  <input id="contact-name" type="text" required placeholder="Ej. Carlos Pérez" class="w-full bg-slate-950 text-white text-sm px-4 py-3 rounded-xl border border-slate-700 focus:outline-none focus:border-sky-500" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-300 mb-1.5">Producto o servicio que buscas *</label>
+                  <input id="contact-interest" type="text" required placeholder="Ej. Diseño web / Licencia" class="w-full bg-slate-950 text-white text-sm px-4 py-3 rounded-xl border border-slate-700 focus:outline-none focus:border-sky-500" />
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="block text-xs font-semibold text-slate-300 mb-1.5">Detalles adicionales (opcional)</label>
+                  <textarea id="contact-details" rows="4" placeholder="Cuéntanos qué necesitas, plazos o dudas..." class="w-full bg-slate-950 text-white text-sm px-4 py-3 rounded-xl border border-slate-700 focus:outline-none focus:border-sky-500"></textarea>
+                </div>
+                <button type="submit" class="sm:col-span-2 py-3.5 rounded-xl font-extrabold text-slate-950 bg-[#25D366] hover:bg-[#1ebe5d] transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20">
+                  <i data-lucide="send" class="w-4 h-4"></i>
+                  <span>Enviar Consulta por WhatsApp</span>
+                </button>
+              </form>
+            </div>
+
+            <div class="lg:col-span-4 bento-card p-6 flex flex-col justify-between bg-slate-900/95">
+              <div class="space-y-3">
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">WhatsApp Oficial</span>
+                <h3 class="text-lg font-extrabold text-white">Atención sin intermediarios</h3>
+                <p class="text-xs text-slate-400 leading-relaxed">Respondemos a tus consultas, validamos comprobantes de pago y acordamos fechas de entrega directamente en tu chat.</p>
+                <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300">
+                  Número oficial: <strong id="contact-official-phone" class="text-emerald-400">0414-7966697</strong>
+                </div>
+              </div>
+              <a href="#" target="_blank" rel="noopener" class="dyn-wa-direct mt-5 w-full py-3 rounded-xl bg-white text-slate-950 font-extrabold text-xs text-center hover:bg-slate-100 transition">
+                Abrir Chat en WhatsApp
+              </a>
+            </div>
+          </div>
+        </section>
+      </main>
+
+    </div>
+  </div>
+
+  <!-- BARRA INFERIOR MÓVIL FLOTANTE (ESTILO PILL CON BOTÓN CENTRAL) -->
+  <nav id="mobile-bottom-nav" class="lg:hidden mobile-pill-nav"></nav>
+
+  <!-- ========================================================================
+       DRAWER DEL CARRITO (ESTILO WARM-BULLDOG-97 + HOVER-SCROLL)
+       ======================================================================== -->
+  <div id="cart-drawer" class="hidden fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex justify-end">
+    <div class="w-full max-w-md bg-slate-950/95 border-l border-slate-800 h-full flex flex-col justify-between p-4 sm:p-5 shadow-2xl animate-fade-in">
+      <div class="flex items-center justify-between pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-400">
+            <i data-lucide="shopping-cart" class="w-4 h-4"></i>
+          </div>
+          <span class="font-extrabold text-white text-sm">Tu Carrito</span>
+        </div>
+        <button onclick="toggleCartDrawer()" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+
+      <div class="flex-1 hover-scroll pr-1 py-1">
+        <div class="wb-master-container">
+          <!-- Tarjeta 1: Productos -->
+          <div class="wb-card wb-cart">
+            <div class="wb-title">
+              <span>Tu Carrito</span>
+              <span id="cart-items-count-label">0 artículos</span>
+            </div>
+            <div id="cart-items-list" class="wb-products"></div>
+          </div>
+
+          <!-- Tarjeta 2: Cupón, Código Especial o Nota rápida -->
+          <div class="wb-card wb-coupons">
+            <label class="wb-title">Cupón o Código Especial</label>
+            <form onsubmit="handleApplyCartCoupon(event)">
+              <input id="cart-coupon-input" type="text" placeholder="Ingresa tu código (ej. ASTRO10)..." class="wb-input-field" />
+              <button type="submit">Aplicar</button>
+            </form>
+            <div id="cart-coupon-feedback" class="hidden px-3.5 pb-3 text-xs"></div>
+          </div>
+
+          <!-- Tarjeta 3: Resumen & Checkout -->
+          <div class="wb-card wb-checkout">
+            <label class="wb-title">Resumen de Pago</label>
+            <div class="wb-details">
+              <span>Subtotal en Divisas:</span>
+              <span id="cart-subtotal-usd">$0.00</span>
+              <span id="cart-discount-label" class="hidden !text-emerald-400">Descuento aplicado:</span>
+              <span id="cart-discount-amount" class="hidden !text-emerald-400">-$0.00</span>
+              <span>Equivalente BCV:</span>
+              <span id="cart-total-bs">Bs. 0,00</span>
+            </div>
+            <div class="wb-checkout-footer">
+              <label id="cart-total-amount" class="wb-price">$0.00</label>
+              <button id="cart-checkout-btn" onclick="goToCheckoutFromCart()" class="wb-checkout-btn">Ir a Pasarela</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button onclick="clearCart()" class="w-full pt-3 text-xs text-slate-400 hover:text-rose-400 transition">Vaciar lista</button>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL DE DETALLE COMPLETO DE PRODUCTO / SERVICIO / PROYECTO
+       ======================================================================== -->
+  <div id="item-detail-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="w-full max-w-2xl bento-card bg-slate-950 border border-sky-500/30 p-5 sm:p-7 max-h-[90vh] hover-scroll shadow-2xl animate-fade-in">
+      <div id="item-detail-modal-body" class="space-y-4"></div>
+    </div>
+  </div>
+
+  <script src="js/catalog.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
