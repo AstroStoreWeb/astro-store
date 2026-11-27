@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Panel Administrativo — Astro Store</title>
+  <title>Panel Administrativo — Creative Store</title>
   <link rel="icon" type="image/png" href="assets/logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -20,11 +20,11 @@
   <header class="glass-nav sticky top-0 lg:static shrink-0 z-40">
     <div class="max-w-[1440px] mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-3">
       <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
-        <img src="assets/logo.png" alt="Logo Astro Store" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl shadow-md border border-white/10 object-cover shrink-0" />
+        <img src="assets/logo.png" alt="Logo Creative Store" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl shadow-md border border-white/10 object-cover shrink-0" />
         <div class="min-w-0">
           <div class="text-[11px] text-slate-400 leading-none mb-0.5 truncate" id="navbar-subtitle">Panel Privado</div>
           <div class="flex items-center gap-2">
-            <span class="dyn-brand-name font-extrabold text-sm sm:text-lg tracking-tight text-white leading-none truncate">Astro Store</span>
+            <span class="dyn-brand-name font-extrabold text-sm sm:text-lg tracking-tight text-white leading-none truncate">Creative Store</span>
             <span id="navbar-mode-badge" class="hidden sm:inline-block px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0">Modo Admin</span>
           </div>
         </div>
@@ -124,6 +124,7 @@
                   <option value="unidad">Modalidad: Por Unidad</option>
                   <option value="cantidad">Modalidad: Por Cantidad</option>
                   <option value="lote">Modalidad: Por Lote / Paquete</option>
+                  <option value="contrato">Modalidad: Por Contrato</option>
                   <option value="suscripcion">Modalidad: Suscripción</option>
                   <option value="servicio">Modalidad: Por Proyecto / Servicio</option>
                   <option value="cotizacion">Modalidad: Bajo Cotización</option>
@@ -142,18 +143,37 @@
                 <textarea id="item-description" rows="2" required placeholder="Descripción corta *" class="sm:col-span-2 lg:col-span-4 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700"></textarea>
                 <textarea id="item-details" rows="3" placeholder="Detalles completos / Entregables / Especificaciones (opcional, visible al abrir Ver Detalle)" class="sm:col-span-2 lg:col-span-4 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700"></textarea>
 
-                <!-- FOTOS DEL PRODUCTO / SERVICIO -->
-                <div class="sm:col-span-2 lg:col-span-4 p-4 rounded-2xl bg-slate-950/90 border border-indigo-500/30 space-y-2.5">
-                  <div class="text-xs font-bold text-indigo-300">Fotografías del Producto / Servicio (puedes agregar varias)</div>
-                  <div class="flex flex-wrap items-center gap-2">
-                    <label class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer transition inline-flex items-center gap-1.5">
+                <!-- FOTOS DEL PRODUCTO / SERVICIO (GOOGLE DRIVE Y NUBES) -->
+                <div class="sm:col-span-2 lg:col-span-4 p-4 rounded-2xl bg-slate-950/90 border border-indigo-500/30 space-y-3">
+                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div class="text-xs font-bold text-indigo-300">Fotografías del Producto / Servicio (Google Drive o Nube)</div>
+                      <p class="text-[11px] text-slate-400">La <strong class="text-amber-300">primera foto</strong> será la Portada del catálogo. Las siguientes se mostrarán en la <strong class="text-sky-300">Galería de Detalles y Características</strong> al abrir el producto.</p>
+                    </div>
+                    <label class="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer transition inline-flex items-center gap-1.5 shrink-0">
                       <i data-lucide="image-plus" class="w-4 h-4"></i>
-                      <span>Subir Fotos</span>
+                      <span>Subir Foto Local</span>
                       <input type="file" accept="image/*" multiple onchange="handleImageFilesUpload(event, 'item')" class="hidden" />
                     </label>
-                    <input id="item-image-url-input" type="url" placeholder="O pega el enlace (URL) de una imagen..." class="flex-1 min-w-[180px] bg-slate-900 text-white text-xs px-3 py-2 rounded-xl border border-slate-700" />
-                    <button type="button" onclick="handleAddImageUrl('item')" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-bold border border-slate-700">Agregar URL</button>
                   </div>
+
+                  <!-- Entrada 1: Enlace individual -->
+                  <div class="flex gap-2">
+                    <input id="item-image-url-input" type="url" placeholder="Pega el enlace de Google Drive o URL directa..." class="flex-1 min-w-[180px] bg-slate-900 text-white text-xs px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                    <button type="button" onclick="handleAddImageUrl('item')" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-bold border border-slate-700 whitespace-nowrap">+ Agregar Enlace</button>
+                  </div>
+
+                  <!-- Entrada 2: Múltiples enlaces de Google Drive a la vez -->
+                  <div class="pt-1">
+                    <label class="block text-[11px] text-slate-400 mb-1">O pega múltiples enlaces de Google Drive (uno por línea o separados por comas):</label>
+                    <div class="flex flex-col sm:flex-row gap-2 items-start">
+                      <textarea id="item-multiple-urls-input" rows="2" placeholder="https://drive.google.com/file/d/1A2B3C.../view&#10;https://drive.google.com/file/d/4D5E6F.../view" class="flex-1 w-full bg-slate-900 text-white text-xs px-3.5 py-2 rounded-xl border border-slate-700 focus:outline-none focus:border-indigo-400"></textarea>
+                      <button type="button" onclick="handleAddMultipleImageUrls('item')" class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition whitespace-nowrap">
+                        Procesar Múltiples Fotos
+                      </button>
+                    </div>
+                  </div>
+
                   <div id="item-images-preview" class="flex flex-wrap gap-2 pt-1"></div>
                 </div>
 
@@ -162,6 +182,28 @@
                   <div class="text-xs font-bold text-sky-300">Tipos de pago habilitados para este producto/servicio <span class="text-slate-400 font-normal">(opcional si es sin precio / a cotizar)</span></div>
                   <p class="text-[11px] text-slate-400">Si colocas un precio fijo, marca las modalidades de pago disponibles. Si lo dejas sin precio, el cliente podrá pedir información o cotización directa por WhatsApp.</p>
                   <div id="item-allowed-plans-container" class="flex flex-wrap gap-2 pt-1"></div>
+                </div>
+
+                <!-- SELECTOR DE PAGO PREDETERMINADO Y CUENTAS / PAGO MÓVIL ESPECÍFICOS PARA ESTE ÍTEM -->
+                <div id="item-accounts-section" class="sm:col-span-2 lg:col-span-4 p-4 rounded-2xl bg-slate-950/90 border border-emerald-500/30 space-y-3">
+                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div class="text-xs font-bold text-emerald-300">Pago Predeterminado y Cuentas Específicas para este Producto / Servicio (ej. Por Contrato)</div>
+                      <p class="text-[11px] text-slate-400">Elige un Pago Móvil o cuenta predeterminada para este ítem y marca qué cuentas quieres que se muestren en la pasarela cuando lo compren (si no marcas ninguna, se mostrarán las cuentas generales de la pasarela).</p>
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-[11px] font-bold text-slate-300 mb-1">Pago / Cuenta Predeterminada al pagar este ítem:</label>
+                      <select id="item-default-account" class="w-full bg-slate-900 text-white text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-400">
+                        <option value="">-- Usar cuenta general predeterminada --</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-[11px] font-bold text-slate-300 mb-1">Cuentas / Pagos Móviles a mostrar para este ítem:</label>
+                      <div id="item-allowed-accounts-container" class="flex flex-wrap gap-2 pt-0.5"></div>
+                    </div>
+                  </div>
                 </div>
 
                 <button type="submit" class="sm:col-span-2 lg:col-span-1 py-2.5 px-5 rounded-xl font-bold text-white bg-astro-gradient">Guardar en Catálogo</button>
@@ -376,16 +418,22 @@
               <div class="flex items-center justify-between">
                 <div>
                   <h3 class="text-base font-extrabold text-white">1. ¿A dónde pagarán? (Cuentas / Métodos de Cobro)</h3>
-                  <p class="text-xs text-slate-400">Configura Pago Móvil, Transferencias, Binance, Zelle, Efectivo (sin tarjetas).</p>
+                  <p class="text-xs text-slate-400">Puedes registrar 10, 40 o más formas de pago (Pago Móvil, Transferencias, Binance, Zelle, Efectivo). Elige cuáles se ven en la pasarela general y cuáles son exclusivas para productos o servicios por contrato.</p>
                 </div>
                 <button id="admin-acc-cancel-edit" onclick="cancelEditAccount()" class="hidden text-xs text-slate-400 hover:text-white">Cancelar</button>
               </div>
               <form onsubmit="handleSavePaymentAccount(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <input id="acc-alias" type="text" placeholder="Etiqueta / Uso (ej. Pago Móvil Contratos)" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
                 <input id="acc-method" type="text" required placeholder="Método (ej. Pago Móvil) *" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
                 <input id="acc-bank" type="text" required placeholder="Banco / Plataforma *" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
                 <input id="acc-info" type="text" required placeholder="Teléfono / Cuenta / ID *" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
                 <input id="acc-holder" type="text" required placeholder="Titular / Cédula / RIF *" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
-                <input id="acc-instructions" type="text" placeholder="Instrucciones adicionales" class="sm:col-span-2 lg:col-span-3 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                <select id="acc-visibility" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700">
+                  <option value="general">Visible en Pasarela General</option>
+                  <option value="exclusiva">Exclusiva para Contratos / Productos Asignados</option>
+                  <option value="oculta">Oculta / Inactiva</option>
+                </select>
+                <input id="acc-instructions" type="text" placeholder="Instrucciones adicionales" class="sm:col-span-2 lg:col-span-1 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
                 <button type="submit" class="py-2.5 px-5 rounded-xl font-bold text-slate-950 bg-emerald-400 hover:bg-emerald-300">Guardar Cuenta</button>
               </form>
               <div id="admin-accounts-list" class="space-y-2 pt-2"></div>
@@ -418,12 +466,37 @@
 
           <!-- MÓDULO ADMIN 3: TIENDA, CUPONES Y PATROCINADORES -->
           <div id="admin-panel-tienda" class="hidden space-y-6 animate-fade-in">
+            <!-- Centro de Notificaciones y Alertas de Vencimiento -->
+            <div id="admin-notifications-center-card" class="bento-card p-6 border border-amber-500/40 bg-gradient-to-r from-amber-950/25 via-slate-900 to-slate-900/90 space-y-4">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-300 shrink-0">
+                    <i data-lucide="bell" class="w-5 h-5"></i>
+                  </div>
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <h3 class="text-base font-extrabold text-white">Centro de Notificaciones y Alertas</h3>
+                      <span id="admin-notif-count-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-slate-950">0 alertas</span>
+                    </div>
+                    <p class="text-xs text-slate-400">Monitoreo de asesorías por vencer, plazos cumplidos y canjes recientes de códigos.</p>
+                  </div>
+                </div>
+                <button type="button" onclick="renderAdminNotificationsCenter()" class="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition flex items-center gap-1.5 self-start sm:self-auto">
+                  <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                  <span>Actualizar Alertas</span>
+                </button>
+              </div>
+
+              <div id="admin-notifications-list" class="space-y-2.5 pt-1"></div>
+            </div>
+
             <div class="bento-card p-6 border border-emerald-500/30">
-              <h3 class="text-base font-extrabold text-white mb-4">1. Configuración de Tienda y WhatsApp</h3>
+              <h3 class="text-base font-extrabold text-white mb-4">1. Configuración de Tienda, Correo y WhatsApp</h3>
               <form onsubmit="handleSaveStoreConfig(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <input id="cfg-brand-name" type="text" required placeholder="Nombre de tienda" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
                 <input id="cfg-tagline" type="text" required placeholder="Etiqueta" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
                 <input id="cfg-wa-number" type="text" required placeholder="WhatsApp (ej. 04147966697)" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                <input id="cfg-admin-email" type="email" placeholder="Correo para alertas (ej. admin@gmail.com)" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
                 <input id="cfg-currency" type="text" required placeholder="Moneda ($ o Bs.)" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
                 <input id="cfg-hero-greeting" type="text" required placeholder="Saludo inicial" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
                 <input id="cfg-hero-highlight" type="text" required placeholder="Texto resaltado" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
@@ -433,50 +506,76 @@
               </form>
             </div>
 
-            <!-- 2. Generador de Cupones y Códigos Especiales -->
+            <!-- 2. Generador Avanzado de Cupones, Asesorías y Códigos de Canje -->
             <div class="bento-card p-6 border border-sky-500/30 space-y-4">
               <div>
-                <h3 class="text-base font-extrabold text-white">2. Cupones de Descuento, Tiempo Limitado y Códigos Especiales</h3>
-                <p class="text-xs text-slate-400">Genera cupones por porcentaje o monto fijo con fecha límite, o crea códigos especiales con sus especificaciones para que el sistema les indique a tus clientes para qué sirve.</p>
+                <h3 class="text-base font-extrabold text-white">2. Cupones de Descuento, Códigos de Asesorías y Beneficios</h3>
+                <p class="text-xs text-slate-400">Configura códigos para compras o para canjear asesorías y trabajos gratuitos por tiempo limitado (ej. 8 o 10 días). Puedes definir 1 solo uso para que se queme al canjearse.</p>
               </div>
               <form onsubmit="handleSaveCoupon(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div class="flex gap-2">
-                  <input id="cpn-code" type="text" required placeholder="Código (ej. ASTRO20) *" class="flex-1 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700 uppercase" />
-                  <button type="button" onclick="generateRandomCouponCode()" title="Generar código" class="px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-bold border border-slate-700">Auto</button>
+                  <input id="cpn-code" type="text" required placeholder="Código (ej. ASESORIA8D) *" class="flex-1 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700 uppercase font-mono font-bold" />
+                  <button type="button" onclick="generateRandomCouponCode()" title="Generar código aleatorio" class="px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-bold border border-slate-700">Auto</button>
                 </div>
-                <select id="cpn-kind" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700">
-                  <option value="descuento">Cupón de Descuento</option>
-                  <option value="especial">Código Especial (con especificaciones)</option>
+                <select id="cpn-kind" onchange="toggleCouponKindFields()" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700">
+                  <option value="asesoria">Asesoría Gratuita (Crea Servicio Activo)</option>
+                  <option value="trabajo_gratis">Trabajo / Proyecto Gratis (Crea Servicio Activo)</option>
+                  <option value="descuento">Cupón de Descuento en Carrito</option>
+                  <option value="especial">Beneficio Especial / Recompensa</option>
                 </select>
-                <select id="cpn-discount-type" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700">
-                  <option value="percent">Descuento en %</option>
-                  <option value="fixed">Descuento fijo ($)</option>
+
+                <!-- Límite de usos -->
+                <select id="cpn-max-uses" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700">
+                  <option value="1">1 Solo Uso (Se quema al primer canje)</option>
+                  <option value="3">3 Usos permitidos</option>
+                  <option value="5">5 Usos permitidos</option>
+                  <option value="10">10 Usos permitidos</option>
+                  <option value="ilimitado">Uso Ilimitado</option>
                 </select>
-                <input id="cpn-discount-val" type="number" step="0.01" min="0" value="10" placeholder="Valor (ej. 10)" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+
+                <!-- Duración en días (para asesorías / trabajos) -->
+                <div id="cpn-duration-wrap">
+                  <input id="cpn-duration-days" type="number" min="1" max="365" value="8" placeholder="Duración: ej. 8 días" class="w-full bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-indigo-500/40" />
+                </div>
+
+                <div id="cpn-discount-wrap" class="hidden sm:col-span-2 grid grid-cols-2 gap-2">
+                  <select id="cpn-discount-type" class="bg-slate-950 text-white text-sm px-3 py-2.5 rounded-xl border border-slate-700">
+                    <option value="percent">Descuento en %</option>
+                    <option value="fixed">Descuento fijo ($)</option>
+                  </select>
+                  <input id="cpn-discount-val" type="number" step="0.01" min="0" value="10" placeholder="Valor (ej. 10)" class="bg-slate-950 text-white text-sm px-3 py-2.5 rounded-xl border border-slate-700" />
+                </div>
+
                 <div class="sm:col-span-2 lg:col-span-1">
-                  <label class="block text-[10px] text-slate-400 mb-1">Vence el (opcional - tiempo limitado)</label>
-                  <input id="cpn-expires" type="date" class="w-full bg-slate-950 text-white text-sm px-3.5 py-2 rounded-xl border border-slate-700" />
+                  <input id="cpn-expires" type="date" title="Fecha límite de vigencia (opcional)" class="w-full bg-slate-950 text-white text-sm px-3.5 py-2 rounded-xl border border-slate-700" />
                 </div>
-                <input id="cpn-specs" type="text" required placeholder="Especificaciones: ¿Para qué es este cupón/código? *" class="sm:col-span-2 lg:col-span-3 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
-                <button type="submit" class="py-2.5 px-5 rounded-xl font-bold text-white bg-astro-gradient">Crear Cupón / Código</button>
+
+                <input id="cpn-specs" type="text" required placeholder="Especificaciones: ¿Qué incluye este beneficio o asesoría? *" class="sm:col-span-2 lg:col-span-3 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                <button type="submit" class="py-2.5 px-5 rounded-xl font-bold text-white bg-astro-gradient">Guardar Código / Beneficio</button>
               </form>
               <div id="admin-coupons-list" class="space-y-2 pt-2"></div>
             </div>
 
-            <!-- 3. Patrocinadores y Socios -->
+            <!-- 3. Ecosistema, Divisiones y Alianzas -->
             <div id="admin-spn-form-card" class="bento-card p-6 border border-amber-500/30 space-y-4">
               <div class="flex items-center justify-between gap-2">
                 <div>
-                  <h3 id="admin-spn-form-title" class="text-base font-extrabold text-white">3. Mención de Patrocinadores y Socios</h3>
-                  <p class="text-xs text-slate-400">Agrega socios o patrocinadores visibles en Inicio. Puedes colocar un precio opcional, modalidad (unidad, cantidad, lote, suscripción, membresía) y botón de info/cotización por WhatsApp.</p>
+                  <h3 id="admin-spn-form-title" class="text-base font-extrabold text-white">3. Ecosistema, Divisiones y Alianzas</h3>
+                  <p class="text-xs text-slate-400">Registra tus Alineaciones de División propias, Socios o Patrocinios visibles en Inicio. Puedes asignarle su clasificación, precio opcional, modalidad y botón de info/cotización por WhatsApp.</p>
                 </div>
                 <button id="admin-spn-cancel-edit" type="button" onclick="cancelEditSponsor()" class="hidden text-xs text-slate-400 hover:text-white shrink-0">Cancelar edición</button>
               </div>
               <form onsubmit="handleSaveSponsor(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <input id="spn-name" type="text" required placeholder="Nombre del Socio / Marca *" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
-                <input id="spn-role" type="text" required placeholder="Rol (ej. Socio Oficial) *" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                <select id="spn-classification" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-amber-500/40 font-semibold">
+                  <option value="division">Clasificación: Alineación de División (Propio)</option>
+                  <option value="socio">Clasificación: Socio / Alianza</option>
+                  <option value="patrocinio">Clasificación: Patrocinio</option>
+                  <option value="otro">Clasificación: Otro / General</option>
+                </select>
+                <input id="spn-name" type="text" required placeholder="Nombre de División / Socio / Marca *" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                <input id="spn-role" type="text" required placeholder="Subtítulo / Rol (ej. División Oficial) *" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
                 <input id="spn-url" type="url" placeholder="Enlace web / red social (opcional)" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
-                <input id="spn-whatsapp" type="text" placeholder="WhatsApp socio (opcional, usa el de la tienda)" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                <input id="spn-whatsapp" type="text" placeholder="WhatsApp directo (opcional, usa el de la tienda)" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
 
                 <div class="space-y-1.5">
                   <input id="spn-price" type="number" step="0.01" min="0" placeholder="Precio ($) — opcional" oninput="syncPriceOnRequestState('spn')" class="w-full bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
@@ -486,25 +585,26 @@
                   </label>
                 </div>
                 <select id="spn-purchase-mode" onchange="updatePurchaseDetailPlaceholder('spn')" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700">
-                  <option value="mencion">Modalidad: Solo mención / Aliado</option>
+                  <option value="mencion">Modalidad: Solo mención / Presentación</option>
+                  <option value="contrato">Modalidad: Por Contrato</option>
                   <option value="unidad">Modalidad: Por Unidad</option>
                   <option value="cantidad">Modalidad: Por Cantidad</option>
                   <option value="lote">Modalidad: Por Lote / Paquete</option>
                   <option value="suscripcion">Modalidad: Suscripción</option>
-                  <option value="membresia">Modalidad: Membresía / Plan Socio</option>
+                  <option value="membresia">Modalidad: Membresía / Plan</option>
                   <option value="cotizacion">Modalidad: Bajo Cotización</option>
                   <option value="personalizado">Modalidad: Personalizada</option>
                 </select>
-                <input id="spn-purchase-detail" type="text" placeholder="Detalle (ej. Mensual, Lote x10, Plan VIP)" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
-                <input id="spn-image-url" type="url" placeholder="Logo / Foto URL del socio (opcional)" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                <input id="spn-purchase-detail" type="text" placeholder="Detalle (ej. Mensual, División Propia, Plan VIP)" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                <input id="spn-image-url" type="url" placeholder="Logo / Foto URL (Google Drive o enlace directo)" class="sm:col-span-2 lg:col-span-1 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
 
-                <input id="spn-desc" type="text" required placeholder="Breve mención, productos o beneficio *" class="sm:col-span-2 lg:col-span-4 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                <input id="spn-desc" type="text" required placeholder="Descripción de la división, socio o beneficio *" class="sm:col-span-2 lg:col-span-3 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
 
                 <label class="sm:col-span-2 lg:col-span-3 inline-flex items-center gap-2 text-xs text-emerald-300 cursor-pointer select-none">
                   <input id="spn-allow-quote" type="checkbox" checked class="accent-emerald-500 w-4 h-4 rounded" />
-                  <span>Mostrar botón de "Pedir Info / Cotizar por WhatsApp" en la tarjeta del socio</span>
+                  <span>Mostrar botón de "Pedir Info / Cotizar por WhatsApp" en la tarjeta</span>
                 </label>
-                <button id="admin-spn-submit-btn" type="submit" class="py-2.5 px-5 rounded-xl font-bold text-slate-950 bg-amber-400 hover:bg-amber-300">Guardar Socio</button>
+                <button id="admin-spn-submit-btn" type="submit" class="py-2.5 px-5 rounded-xl font-bold text-slate-950 bg-amber-400 hover:bg-amber-300">Guardar Registro</button>
               </form>
               <div id="admin-sponsors-list" class="space-y-2 pt-2"></div>
             </div>

@@ -38,6 +38,7 @@ const STORE_STATE = {
   jobStatusFilter: 'todos',
   ledgerFilter: 'todos',
   ledgerSearch: '',
+  sponsorFilter: 'todos',
   cart: [],
   checkoutDirectItem: null,
   checkoutReceipt: null,
@@ -51,13 +52,38 @@ const PURCHASE_MODE_META = {
   unidad: { label: 'Por Unidad', qtyLabel: 'Cantidad de unidades', placeholder: 'Ej. Unidad individual, 1 pieza...' },
   cantidad: { label: 'Por Cantidad', qtyLabel: 'Cantidad deseada', placeholder: 'Ej. Mín. 5 uds, Al mayor desde 10...' },
   lote: { label: 'Por Lote / Paquete', qtyLabel: 'Cantidad de lotes / paquetes', placeholder: 'Ej. Lote de 12, Caja x24, Pack x6...' },
+  contrato: { label: 'Por Contrato', qtyLabel: 'Alcance o duración del contrato', placeholder: 'Ej. Contrato mensual, Por proyecto o servicio contratado...' },
   suscripcion: { label: 'Suscripción', qtyLabel: 'Plan o duración deseada', placeholder: 'Ej. Mensual, Trimestral, Anual...' },
   servicio: { label: 'Por Proyecto / Servicio', qtyLabel: 'Alcance o cantidad', placeholder: 'Ej. Pago único, Por proyecto...' },
   membresia: { label: 'Membresía / Plan Socio', qtyLabel: 'Tipo de plan / duración', placeholder: 'Ej. Mensual, Plan VIP, Socio Activo...' },
   cotizacion: { label: 'Bajo Cotización', qtyLabel: 'Cantidad o detalles requeridos', placeholder: 'Ej. A medida según requerimiento...' },
   personalizado: { label: 'Personalizada', qtyLabel: 'Cantidad o especificación', placeholder: 'Ej. Por kilo, Por horas, Por combo...' },
-  mencion: { label: 'Socio / Aliado', qtyLabel: 'Consulta o requerimiento', placeholder: 'Ej. Beneficio o detalle del socio...' }
+  mencion: { label: 'Mención / Presentación', qtyLabel: 'Consulta o requerimiento', placeholder: 'Ej. Beneficio o detalle...' }
 };
+
+const SPONSOR_CLASSIFICATION_META = {
+  division: { label: 'Alineación de División', badgeCls: 'bg-sky-500/20 text-sky-300 border-sky-500/40', icon: 'layers' },
+  socio: { label: 'Socio / Alianza', badgeCls: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40', icon: 'handshake' },
+  patrocinio: { label: 'Patrocinio', badgeCls: 'bg-amber-500/20 text-amber-300 border-amber-500/40', icon: 'award' },
+  otro: { label: 'Ecosistema', badgeCls: 'bg-purple-500/20 text-purple-300 border-purple-500/40', icon: 'sparkles' }
+};
+
+function getSponsorClassificationMeta(cls) {
+  return SPONSOR_CLASSIFICATION_META[cls] || SPONSOR_CLASSIFICATION_META.socio;
+}
+
+function setSponsorFilter(filterKey) {
+  STORE_STATE.sponsorFilter = filterKey || 'todos';
+  ['todos', 'division', 'socio', 'patrocinio'].forEach(k => {
+    const btn = document.getElementById(`spn-filter-${k}`);
+    if (!btn) return;
+    btn.className = k === STORE_STATE.sponsorFilter
+      ? 'px-3 py-1 rounded-full text-[11px] font-bold bg-sky-600 text-white transition'
+      : 'px-3 py-1 rounded-full text-[11px] font-medium text-slate-300 hover:text-white transition';
+  });
+  renderHomeModule();
+  if (window.lucide) window.lucide.createIcons();
+}
 
 function hasFixedPrice(entity) {
   if (!entity || entity.priceOnRequest) return false;
@@ -289,7 +315,7 @@ function switchPublicTab(tabName, filterOverride = null, shouldResetScroll = tru
   STORE_STATE.publicTab = tabName;
   if (filterOverride) STORE_STATE.filterType = filterOverride;
 
-  ['inicio', 'catalogo', 'proyectos', 'trabajos', 'pasarela', 'contacto'].forEach(t => {
+  ['inicio', 'catalogo', 'proyectos', 'trabajos', 'canje', 'pasarela', 'contacto'].forEach(t => {
     const panel = document.getElementById(`pub-panel-${t}`);
     if (panel) panel.classList.toggle('hidden', t !== tabName);
   });
@@ -305,6 +331,7 @@ function switchPublicTab(tabName, filterOverride = null, shouldResetScroll = tru
   }
   if (tabName === 'proyectos') renderProjectsModule();
   if (tabName === 'trabajos') renderTrabajosModule();
+  if (tabName === 'canje') renderCanjeModule();
   if (tabName === 'pasarela') renderPasarelaModule();
   if (tabName === 'contacto') renderContactoModule();
 
@@ -334,7 +361,8 @@ function renderNavigationChrome(viewName) {
       { key: 'inicio', label: 'Inicio', icon: 'layout-grid' },
       { key: 'catalogo', label: 'Catálogo', icon: 'shopping-bag' },
       { key: 'proyectos', label: 'Proyectos', icon: 'briefcase' },
-      { key: 'trabajos', label: 'Trabajos', icon: 'clock' },
+      { key: 'trabajos', label: 'Trabajos & Asesorías', icon: 'clock' },
+      { key: 'canje', label: 'Canjear Código', icon: 'gift' },
       { key: 'pasarela', label: 'Pasarela', icon: 'wallet' },
       { key: 'contacto', label: 'Contacto', icon: 'message-square-heart' }
     ];
@@ -354,7 +382,7 @@ function renderNavigationChrome(viewName) {
     const mobTabs = [
       { key: 'inicio', label: 'Inicio', icon: 'home' },
       { key: 'catalogo', label: 'Catálogo', icon: 'shopping-bag' },
-      { key: 'pasarela', label: 'Pasarela', icon: 'wallet', center: true },
+      { key: 'canje', label: 'Canjear', icon: 'gift', center: true },
       { key: 'trabajos', label: 'Trabajos', icon: 'clock' },
       { key: 'contacto', label: 'Contacto', icon: 'message-circle' }
     ];
@@ -377,6 +405,10 @@ function renderNavigationChrome(viewName) {
     }).join('');
 
     navActions.innerHTML = `
+      <button onclick="switchPublicTab('canje')" title="Canjear Código o Asesoría" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-indigo-500/20 to-sky-500/20 text-indigo-300 hover:text-white border border-indigo-500/30 text-xs font-bold transition shadow-sm">
+        <i data-lucide="gift" class="w-3.5 h-3.5 text-amber-300"></i>
+        <span class="hidden sm:inline">Canjear Código</span>
+      </button>
       <button onclick="toggleCartDrawer()" title="Carrito" class="relative p-2.5 rounded-full bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
         <i data-lucide="shopping-cart" class="w-4 h-4 sm:w-5 sm:h-5"></i>
         <span id="cart-count-badge" class="hidden absolute -top-1 -right-1 px-1.5 min-w-[18px] h-[18px] rounded-full bg-emerald-500 text-[10px] font-extrabold text-slate-950 flex items-center justify-center">0</span>
@@ -418,6 +450,16 @@ function renderNavigationChrome(viewName) {
         </button>
       ` : ''}
     `;
+
+    if (navActions) {
+      navActions.innerHTML = `
+        <button onclick="switchAdminTab('tienda'); setTimeout(() => { const el = document.getElementById('admin-notifications-center-card'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 150);" title="Centro de Notificaciones y Alertas" class="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 transition flex items-center gap-1.5 text-xs font-bold">
+          <i data-lucide="bell" class="w-3.5 h-3.5"></i>
+          <span class="hidden sm:inline">Alertas</span>
+          <span id="admin-header-notif-badge" class="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 text-[10px] font-extrabold">0</span>
+        </button>
+      `;
+    }
 
     const mobAdminTabs = [
       { key: 'catalogo', label: 'Catálogo', icon: 'shopping-bag' },
@@ -501,56 +543,67 @@ function renderHomeModule() {
   if (spnSec && spnGrid) {
     spnSec.classList.toggle('hidden', STORE_STATE.sponsors.length === 0);
     const sym = STORE_STATE.config.currencySymbol;
-    spnGrid.innerHTML = STORE_STATE.sponsors.map(s => {
-      const modeLabel = formatPurchaseModeLabel(s.purchaseMode, s.purchaseDetail);
-      const priced = hasFixedPrice(s);
-      const imgSrc = s.imageUrl ? normalizeExternalImageUrl(s.imageUrl) : '';
-      const showQuoteBtn = s.allowQuote !== false || !priced || (s.purchaseMode && s.purchaseMode !== 'mencion');
+    const filteredSponsors = STORE_STATE.sponsors.filter(s => {
+      if (!STORE_STATE.sponsorFilter || STORE_STATE.sponsorFilter === 'todos') return true;
+      return (s.classification || 'socio') === STORE_STATE.sponsorFilter;
+    });
 
-      return `
-        <div class="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-amber-500/35 transition flex flex-col justify-between gap-3">
-          <div class="space-y-2">
-            <div class="flex items-start gap-3">
-              ${imgSrc ? `<img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(s.name)}" class="w-11 h-11 rounded-xl object-cover border border-slate-700 shrink-0" />` : `
-                <div class="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
-                  <i data-lucide="award" class="w-5 h-5"></i>
+    if (!filteredSponsors.length) {
+      spnGrid.innerHTML = `<div class="col-span-full text-center text-slate-400 text-xs py-5">No hay registros en esta clasificación.</div>`;
+    } else {
+      spnGrid.innerHTML = filteredSponsors.map(s => {
+        const modeLabel = formatPurchaseModeLabel(s.purchaseMode, s.purchaseDetail);
+        const priced = hasFixedPrice(s);
+        const imgSrc = s.imageUrl ? normalizeExternalImageUrl(s.imageUrl) : '';
+        const showQuoteBtn = s.allowQuote !== false || !priced || (s.purchaseMode && s.purchaseMode !== 'mencion');
+        const clsMeta = getSponsorClassificationMeta(s.classification || 'socio');
+
+        return `
+          <div class="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-amber-500/35 transition flex flex-col justify-between gap-3">
+            <div class="space-y-2">
+              <div class="flex items-start gap-3">
+                ${imgSrc ? `<img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(s.name)}" class="w-11 h-11 rounded-xl object-cover border border-slate-700 shrink-0" />` : `
+                  <div class="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
+                    <i data-lucide="${clsMeta.icon}" class="w-5 h-5"></i>
+                  </div>
+                `}
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="px-2 py-0.5 rounded-md text-[10px] font-bold border ${clsMeta.badgeCls}">${escapeHtml(clsMeta.label)}</span>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-amber-300">${escapeHtml(s.role)}</span>
+                    ${modeLabel ? `<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">${escapeHtml(modeLabel)}</span>` : ''}
+                  </div>
+                  <div class="font-bold text-white text-sm truncate mt-1">${escapeHtml(s.name)}</div>
                 </div>
-              `}
-              <div class="min-w-0 flex-1">
-                <div class="flex flex-wrap items-center gap-1.5">
-                  <span class="text-[10px] font-bold uppercase tracking-wider text-amber-300">${escapeHtml(s.role)}</span>
-                  ${modeLabel ? `<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">${escapeHtml(modeLabel)}</span>` : ''}
-                </div>
-                <div class="font-bold text-white text-sm truncate mt-0.5">${escapeHtml(s.name)}</div>
               </div>
+
+              <p class="text-xs text-slate-300 leading-snug">${escapeHtml(s.description)}</p>
+
+              ${priced ? `
+                <div class="flex flex-wrap items-baseline gap-2 pt-0.5">
+                  <span class="text-sm font-extrabold text-emerald-400">${escapeHtml(sym)}${Number(s.price).toFixed(2)}</span>
+                  <span class="text-[11px] font-semibold text-sky-300">&approx; ${formatBs(s.price, rates?.usd)}</span>
+                </div>
+              ` : (s.purchaseMode && s.purchaseMode !== 'mencion' ? `
+                <div class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-[11px] font-bold text-amber-300">
+                  <span>Precio a consultar / Cotizar</span>
+                </div>
+              ` : '')}
             </div>
 
-            <p class="text-xs text-slate-300 leading-snug">${escapeHtml(s.description)}</p>
-
-            ${priced ? `
-              <div class="flex flex-wrap items-baseline gap-2 pt-0.5">
-                <span class="text-sm font-extrabold text-emerald-400">${escapeHtml(sym)}${Number(s.price).toFixed(2)}</span>
-                <span class="text-[11px] font-semibold text-sky-300">&approx; ${formatBs(s.price, rates?.usd)}</span>
-              </div>
-            ` : (s.purchaseMode && s.purchaseMode !== 'mencion' ? `
-              <div class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-[11px] font-bold text-amber-300">
-                <span>Precio a consultar / Cotizar</span>
-              </div>
-            ` : '')}
+            <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/80">
+              ${s.url ? `<a href="${escapeHtml(s.url)}" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-bold transition">Visitar</a>` : ''}
+              ${showQuoteBtn ? `
+                <button type="button" onclick="openQuoteModal('sponsor', '${s.id}')" class="flex-1 px-3 py-1.5 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-slate-950 text-xs font-extrabold transition flex items-center justify-center gap-1.5">
+                  <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>
+                  <span>${priced ? 'Pedir Info / Adquirir' : 'Pedir Info / Cotizar'}</span>
+                </button>
+              ` : ''}
+            </div>
           </div>
-
-          <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/80">
-            ${s.url ? `<a href="${escapeHtml(s.url)}" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-bold transition">Visitar</a>` : ''}
-            ${showQuoteBtn ? `
-              <button type="button" onclick="openQuoteModal('sponsor', '${s.id}')" class="flex-1 px-3 py-1.5 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-slate-950 text-xs font-extrabold transition flex items-center justify-center gap-1.5">
-                <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>
-                <span>${priced ? 'Pedir Info / Adquirir' : 'Pedir Info / Cotizar'}</span>
-              </button>
-            ` : ''}
-          </div>
-        </div>
-      `;
-    }).join('');
+        `;
+      }).join('');
+    }
   }
 }
 
@@ -1050,6 +1103,7 @@ function openPasarelaForItem(itemId) {
     qty: 1
   };
   STORE_STATE.selectedPlanId = null;
+  STORE_STATE.selectedAccountId = null;
   switchPublicTab('pasarela');
 }
 
@@ -1057,6 +1111,7 @@ function goToCheckoutFromCart() {
   clearPendingWaitScreen();
   STORE_STATE.checkoutDirectItem = null;
   STORE_STATE.selectedPlanId = null;
+  STORE_STATE.selectedAccountId = null;
   if (STORE_STATE.isCartOpen) toggleCartDrawer();
   switchPublicTab('pasarela');
 }
@@ -1082,6 +1137,45 @@ function getCompatiblePlansForCheckout(items) {
   }
 
   return activePlans.filter(p => (allowedIds || []).includes(p.id));
+}
+
+function getCompatibleAccountsForCheckout(items) {
+  const allValidAccounts = STORE_STATE.paymentAccounts.filter(a => a.visibility !== 'oculta' && a.active !== false);
+  const generalAccounts = allValidAccounts.filter(a => (a.visibility || 'general') === 'general');
+  if (!items.length) return { accounts: generalAccounts, preferredDefaultId: '', isSpecificFilter: false };
+
+  const specificIdsSet = new Set();
+  let preferredDefaultId = '';
+  let hasAnySpecificRule = false;
+
+  for (const ci of items) {
+    const fullItem = STORE_STATE.catalog.find(x => x.id === ci.id);
+    if (!fullItem) continue;
+    const defId = fullItem.defaultAccountId || '';
+    const allowedIds = Array.isArray(fullItem.allowedAccountIds) ? fullItem.allowedAccountIds : [];
+    if (defId && !preferredDefaultId) preferredDefaultId = defId;
+    if (defId) {
+      specificIdsSet.add(defId);
+      hasAnySpecificRule = true;
+    }
+    if (allowedIds.length > 0) {
+      hasAnySpecificRule = true;
+      allowedIds.forEach(id => specificIdsSet.add(id));
+    }
+  }
+
+  if (hasAnySpecificRule) {
+    const filtered = allValidAccounts.filter(a => specificIdsSet.has(a.id));
+    if (filtered.length > 0) {
+      return { accounts: filtered, preferredDefaultId, isSpecificFilter: true };
+    }
+  }
+
+  return {
+    accounts: generalAccounts.length ? generalAccounts : allValidAccounts,
+    preferredDefaultId,
+    isSpecificFilter: false
+  };
 }
 
 function selectCheckoutPlan(planId) {
@@ -1167,12 +1261,16 @@ function renderPasarelaModule() {
   const discount = calculateCouponDiscount(subtotal, coupon);
   const total = Math.max(0, subtotal - discount);
   const compatiblePlans = getCompatiblePlansForCheckout(items);
-  const activeAccounts = STORE_STATE.paymentAccounts.filter(a => a.active !== false);
+  const accResolution = getCompatibleAccountsForCheckout(items);
+  const activeAccounts = accResolution.accounts;
 
   const selectedPlan = compatiblePlans.find(p => p.id === STORE_STATE.selectedPlanId) || compatiblePlans[0] || null;
   if (selectedPlan) STORE_STATE.selectedPlanId = selectedPlan.id;
 
-  const selectedAcc = activeAccounts.find(a => a.id === STORE_STATE.selectedAccountId) || activeAccounts[0] || null;
+  const selectedAcc = activeAccounts.find(a => a.id === STORE_STATE.selectedAccountId)
+    || (accResolution.preferredDefaultId ? activeAccounts.find(a => a.id === accResolution.preferredDefaultId) : null)
+    || activeAccounts[0]
+    || null;
   if (selectedAcc) STORE_STATE.selectedAccountId = selectedAcc.id;
 
   const pct = selectedPlan ? (selectedPlan.mode === 'contado' ? 100 : Number(selectedPlan.initialPercent || 50)) : 100;
@@ -1265,14 +1363,21 @@ function renderPasarelaModule() {
     <!-- Columna Derecha: Cuentas Destino y Confirmación -->
     <div class="lg:col-span-5 space-y-5">
       <div class="bento-card p-5 space-y-3">
-        <h3 class="text-sm font-extrabold text-white">2. ¿A dónde realizarás el pago?</h3>
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+          <h3 class="text-sm font-extrabold text-white">2. ¿A dónde realizarás el pago?</h3>
+          ${accResolution.isSpecificFilter ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">Cuenta asignada al producto / contrato</span>` : ''}
+        </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
           ${activeAccounts.map(a => {
             const isSel = selectedAcc && a.id === selectedAcc.id;
+            const isDefaultForOrder = accResolution.preferredDefaultId && a.id === accResolution.preferredDefaultId;
             return `
               <button type="button" onclick="selectCheckoutAccount('${a.id}')" class="p-3 rounded-xl text-left border transition ${isSel ? 'bg-emerald-500/20 border-emerald-400 text-white' : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'}">
-                <div class="text-xs font-extrabold">${escapeHtml(a.method)}</div>
-                <div class="text-[11px] text-slate-400 truncate">${escapeHtml(a.bank)}</div>
+                <div class="flex items-center justify-between gap-1">
+                  <span class="text-xs font-extrabold truncate">${escapeHtml(a.alias || a.method)}</span>
+                  ${isDefaultForOrder ? `<span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold shrink-0">Predeterminado</span>` : ''}
+                </div>
+                <div class="text-[11px] text-slate-400 truncate">${escapeHtml(a.alias ? `${a.method} · ${a.bank}` : a.bank)}</div>
               </button>
             `;
           }).join('')}
@@ -1280,6 +1385,7 @@ function renderPasarelaModule() {
 
         <div class="p-4 rounded-2xl bg-slate-900/95 border border-slate-800 text-xs space-y-1">
           ${selectedAcc ? `
+            ${selectedAcc.alias ? `<div class="text-[10px] font-bold uppercase tracking-wider text-amber-300">${escapeHtml(selectedAcc.alias)}</div>` : ''}
             <div class="font-bold text-emerald-400 text-sm">${escapeHtml(selectedAcc.method)} — ${escapeHtml(selectedAcc.bank)}</div>
             <div class="text-white font-semibold">Datos: <span class="text-sky-300 select-all">${escapeHtml(selectedAcc.accountInfo)}</span></div>
             <div class="text-slate-300">Titular: ${escapeHtml(selectedAcc.holder)}</div>
@@ -1526,8 +1632,15 @@ function switchAdminTab(tabName, shouldResetScroll = true) {
     }
   });
 
-  if (tabName === 'catalogo') renderAdminItemPlansCheckboxes();
+  if (tabName === 'catalogo') {
+    renderAdminItemPlansCheckboxes();
+    renderAdminItemAccountsSelector();
+  }
   if (tabName === 'pasarela') renderAdminReceivablesManager();
+  if (tabName === 'tienda') {
+    renderAdminNotificationsCenter();
+    renderAdminCouponsList();
+  }
   if (shouldResetScroll) resetScrollArea();
   if (window.lucide) window.lucide.createIcons();
 }
@@ -1566,7 +1679,10 @@ function renderAdminView(options = {}) {
 
   switchAdminTab(STORE_STATE.adminTab, !preserveScroll);
   renderAdminClassificationUI();
-  if (!preserveForms) renderAdminItemPlansCheckboxes();
+  if (!preserveForms) {
+    renderAdminItemPlansCheckboxes();
+    renderAdminItemAccountsSelector();
+  }
   renderAdminCatalogList();
   renderAdminProjectsList();
   renderAdminJobsList();
@@ -1576,6 +1692,7 @@ function renderAdminView(options = {}) {
   renderAdminPlansList();
   renderAdminCouponsList();
   renderAdminSponsorsList();
+  renderAdminNotificationsCenter();
   if (!preserveForms) renderAdminCloudSettings();
 
   if (!preserveForms) {
@@ -1583,6 +1700,8 @@ function renderAdminView(options = {}) {
     document.getElementById('cfg-brand-name').value = c.brandName;
     document.getElementById('cfg-tagline').value = c.tagline;
     document.getElementById('cfg-wa-number').value = c.whatsappNumber;
+    const emailEl = document.getElementById('cfg-admin-email');
+    if (emailEl) emailEl.value = c.adminEmail || '';
     document.getElementById('cfg-currency').value = c.currencySymbol;
     document.getElementById('cfg-hero-greeting').value = c.heroGreeting;
     document.getElementById('cfg-hero-highlight').value = c.heroHighlight;
@@ -1611,6 +1730,51 @@ function renderAdminItemPlansCheckboxes(selectedIds = null) {
       <label class="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 hover:border-sky-500 cursor-pointer text-xs text-slate-200 select-none">
         <input type="checkbox" name="item-allowed-plan" value="${p.id}" ${checked} class="accent-sky-500 w-4 h-4 rounded" />
         <span class="font-semibold">${escapeHtml(p.name)}</span>
+      </label>
+    `;
+  }).join('');
+}
+
+// --- Selector de Pago Predeterminado y Cuentas Específicas por Producto / Contrato ---
+function renderAdminItemAccountsSelector(selectedDefaultId = null, selectedAllowedIds = null) {
+  const defSelect = document.getElementById('item-default-account');
+  const allowedContainer = document.getElementById('item-allowed-accounts-container');
+  if (!defSelect || !allowedContainer) return;
+
+  const editingItem = STORE_STATE.editingItemId
+    ? STORE_STATE.catalog.find(i => i.id === STORE_STATE.editingItemId)
+    : null;
+
+  const activeDefaultId = selectedDefaultId !== null
+    ? selectedDefaultId
+    : (editingItem?.defaultAccountId || '');
+  const activeAllowedIds = selectedAllowedIds !== null
+    ? selectedAllowedIds
+    : (Array.isArray(editingItem?.allowedAccountIds) ? editingItem.allowedAccountIds : []);
+
+  const availableAccounts = STORE_STATE.paymentAccounts.filter(a => a.visibility !== 'oculta' && a.active !== false);
+
+  defSelect.innerHTML = `<option value="">-- Usar cuenta general predeterminada --</option>` +
+    availableAccounts.map(a => {
+      const label = a.alias ? `${a.alias} (${a.method} · ${a.bank})` : `${a.method} · ${a.bank} (${a.accountInfo})`;
+      const sel = a.id === activeDefaultId ? 'selected' : '';
+      return `<option value="${a.id}" ${sel}>${escapeHtml(label)}</option>`;
+    }).join('');
+
+  if (!availableAccounts.length) {
+    allowedContainer.innerHTML = `<span class="text-xs text-amber-300">Registra tus cuentas o Pagos Móviles en la pestaña Pasarela.</span>`;
+    return;
+  }
+
+  allowedContainer.innerHTML = availableAccounts.map(a => {
+    const checked = activeAllowedIds.includes(a.id) ? 'checked' : '';
+    const isExclusive = a.visibility === 'exclusiva';
+    const title = a.alias ? `${a.alias} (${a.method} · ${a.bank})` : `${a.method} · ${a.bank}`;
+    return `
+      <label class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border ${isExclusive ? 'border-amber-500/40' : 'border-slate-700'} hover:border-emerald-500 cursor-pointer text-xs text-slate-200 select-none">
+        <input type="checkbox" name="item-allowed-account" value="${a.id}" ${checked} class="accent-emerald-500 w-3.5 h-3.5 rounded" />
+        <span class="font-semibold">${escapeHtml(title)}</span>
+        ${isExclusive ? `<span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold">Exclusiva</span>` : ''}
       </label>
     `;
   }).join('');
@@ -1705,6 +1869,15 @@ function renderAdminCatalogList() {
     const planNames = (item.allowedPlanIds || [])
       .map(pid => STORE_STATE.paymentPlans.find(p => p.id === pid)?.name)
       .filter(Boolean);
+    const defaultAcc = item.defaultAccountId
+      ? STORE_STATE.paymentAccounts.find(a => a.id === item.defaultAccountId)
+      : null;
+    const specificAccNames = (item.allowedAccountIds || [])
+      .map(aid => {
+        const acc = STORE_STATE.paymentAccounts.find(a => a.id === aid);
+        return acc ? (acc.alias || `${acc.method} ${acc.bank}`) : null;
+      })
+      .filter(Boolean);
     const priced = hasFixedPrice(item);
     const modeLabel = formatPurchaseModeLabel(item.purchaseMode, item.purchaseDetail);
 
@@ -1725,6 +1898,8 @@ function renderAdminCatalogList() {
             ${priced
               ? planNames.map(n => `<span class="px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 text-[10px] font-semibold">${escapeHtml(n)}</span>`).join('')
               : `<span class="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[10px] font-semibold">Cotización / Info vía WhatsApp</span>`}
+            ${defaultAcc ? `<span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold">Pago predeterminado: ${escapeHtml(defaultAcc.alias || `${defaultAcc.method} ${defaultAcc.bank}`)}</span>` : ''}
+            ${specificAccNames.length ? `<span class="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-semibold">Cuentas asignadas: ${escapeHtml(specificAccNames.join(', '))}</span>` : ''}
           </div>
         </div>
         <div class="flex gap-2 shrink-0">
@@ -1750,6 +1925,12 @@ function handleSaveCatalogItem(e) {
     return;
   }
 
+  const defaultAccountId = document.getElementById('item-default-account')?.value || '';
+  const checkedAccounts = Array.from(document.querySelectorAll('input[name="item-allowed-account"]:checked')).map(cb => cb.value);
+  if (defaultAccountId && !checkedAccounts.includes(defaultAccountId) && checkedAccounts.length > 0) {
+    checkedAccounts.unshift(defaultAccountId);
+  }
+
   const pendingImgInput = document.getElementById('item-image-url-input');
   if (pendingImgInput && pendingImgInput.value.trim()) {
     STORE_STATE.draftItemImages.push(normalizeExternalImageUrl(pendingImgInput.value.trim()));
@@ -1770,7 +1951,9 @@ function handleSaveCatalogItem(e) {
     description: document.getElementById('item-description').value.trim(),
     details: document.getElementById('item-details').value.trim(),
     images: [...STORE_STATE.draftItemImages],
-    allowedPlanIds: checkedPlans
+    allowedPlanIds: checkedPlans,
+    defaultAccountId,
+    allowedAccountIds: checkedAccounts
   };
 
   if (STORE_STATE.editingItemId) {
@@ -1819,6 +2002,7 @@ function editCatalogItem(id) {
   STORE_STATE.draftItemImages = Array.isArray(item.images) ? [...item.images] : [];
   renderDraftImagesPreview('item');
   renderAdminItemPlansCheckboxes(item.allowedPlanIds || []);
+  renderAdminItemAccountsSelector(item.defaultAccountId || '', item.allowedAccountIds || []);
   scrollToCardForm('admin-item-form-card');
 }
 
@@ -1840,6 +2024,7 @@ function cancelEditCatalogItem() {
   updatePurchaseDetailPlaceholder('item');
   renderDraftImagesPreview('item');
   renderAdminItemPlansCheckboxes();
+  renderAdminItemAccountsSelector('', []);
 }
 
 function deleteCatalogItem(id) {
@@ -1853,30 +2038,50 @@ function deleteCatalogItem(id) {
 function renderAdminAccountsList() {
   const el = document.getElementById('admin-accounts-list');
   if (!el) return;
-  el.innerHTML = STORE_STATE.paymentAccounts.map(a => `
-    <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-      <div class="text-xs">
-        <div class="font-bold text-white">${escapeHtml(a.method)} · <span class="text-emerald-400">${escapeHtml(a.bank)}</span></div>
-        <div class="text-slate-400">${escapeHtml(a.accountInfo)} | ${escapeHtml(a.holder)}</div>
+  if (!STORE_STATE.paymentAccounts.length) {
+    el.innerHTML = `<p class="text-xs text-slate-400">No hay cuentas o Pagos Móviles registrados.</p>`;
+    return;
+  }
+  el.innerHTML = STORE_STATE.paymentAccounts.map(a => {
+    const vis = a.visibility || (a.active === false ? 'oculta' : 'general');
+    const visBadge = vis === 'general'
+      ? { label: 'Pasarela General', cls: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' }
+      : vis === 'exclusiva'
+      ? { label: 'Exclusiva (Contratos / Asignados)', cls: 'bg-amber-500/20 text-amber-300 border border-amber-500/30' }
+      : { label: 'Oculta / Inactiva', cls: 'bg-slate-800 text-slate-400 border border-slate-700' };
+
+    return `
+      <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div class="text-xs space-y-0.5">
+          <div class="flex items-center gap-2 flex-wrap">
+            ${a.alias ? `<span class="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold text-[10px]">${escapeHtml(a.alias)}</span>` : ''}
+            <span class="font-bold text-white">${escapeHtml(a.method)} · <span class="text-emerald-400">${escapeHtml(a.bank)}</span></span>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${visBadge.cls}">${visBadge.label}</span>
+          </div>
+          <div class="text-slate-400">${escapeHtml(a.accountInfo)} | ${escapeHtml(a.holder)}${a.instructions ? ` · <span class="italic text-slate-500">${escapeHtml(a.instructions)}</span>` : ''}</div>
+        </div>
+        <div class="flex gap-2 shrink-0 flex-wrap">
+          <button onclick="toggleAccountActive('${a.id}')" title="Cambiar visibilidad (Pasarela General -> Exclusiva Contratos -> Oculta)" class="px-2.5 py-1 rounded-lg text-[11px] font-bold ${visBadge.cls}">Cambiar Visibilidad</button>
+          <button onclick="editPaymentAccount('${a.id}')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-800 text-sky-300">Editar</button>
+          <button onclick="deletePaymentAccount('${a.id}')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-500/15 text-rose-300">Eliminar</button>
+        </div>
       </div>
-      <div class="flex gap-2 shrink-0">
-        <button onclick="toggleAccountActive('${a.id}')" class="px-2.5 py-1 rounded-lg text-[11px] font-bold ${a.active !== false ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'}">${a.active !== false ? 'Activa' : 'Oculta'}</button>
-        <button onclick="editPaymentAccount('${a.id}')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-800 text-sky-300">Editar</button>
-        <button onclick="deletePaymentAccount('${a.id}')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-500/15 text-rose-300">Eliminar</button>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 function handleSavePaymentAccount(e) {
   e.preventDefault();
+  const vis = document.getElementById('acc-visibility')?.value || 'general';
   const data = {
+    alias: document.getElementById('acc-alias')?.value.trim() || '',
     method: document.getElementById('acc-method').value.trim(),
     bank: document.getElementById('acc-bank').value.trim(),
     accountInfo: document.getElementById('acc-info').value.trim(),
     holder: document.getElementById('acc-holder').value.trim(),
     instructions: document.getElementById('acc-instructions').value.trim(),
-    active: true
+    visibility: vis,
+    active: vis !== 'oculta'
   };
   if (STORE_STATE.editingAccountId) {
     const idx = STORE_STATE.paymentAccounts.findIndex(a => a.id === STORE_STATE.editingAccountId);
@@ -1887,6 +2092,7 @@ function handleSavePaymentAccount(e) {
   saveToStorage(STORE_STORAGE_KEYS.PAYMENT_ACCOUNTS, STORE_STATE.paymentAccounts);
   cancelEditAccount();
   renderAdminAccountsList();
+  renderAdminItemAccountsSelector();
   showToast('Cuenta guardada');
 }
 
@@ -1895,31 +2101,44 @@ function editPaymentAccount(id) {
   if (!a) return;
   STORE_STATE.editingAccountId = id;
   document.getElementById('admin-acc-cancel-edit').classList.remove('hidden');
+  if (document.getElementById('acc-alias')) document.getElementById('acc-alias').value = a.alias || '';
   document.getElementById('acc-method').value = a.method;
   document.getElementById('acc-bank').value = a.bank;
   document.getElementById('acc-info').value = a.accountInfo;
   document.getElementById('acc-holder').value = a.holder;
+  if (document.getElementById('acc-visibility')) {
+    document.getElementById('acc-visibility').value = a.visibility || (a.active === false ? 'oculta' : 'general');
+  }
   document.getElementById('acc-instructions').value = a.instructions || '';
 }
 
 function cancelEditAccount() {
   STORE_STATE.editingAccountId = null;
   document.getElementById('admin-acc-cancel-edit').classList.add('hidden');
-  ['acc-method', 'acc-bank', 'acc-info', 'acc-holder', 'acc-instructions'].forEach(id => { document.getElementById(id).value = ''; });
+  ['acc-alias', 'acc-method', 'acc-bank', 'acc-info', 'acc-holder', 'acc-instructions'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  if (document.getElementById('acc-visibility')) document.getElementById('acc-visibility').value = 'general';
 }
 
 function toggleAccountActive(id) {
   const a = STORE_STATE.paymentAccounts.find(x => x.id === id);
   if (!a) return;
-  a.active = a.active === false;
+  const currentVis = a.visibility || (a.active === false ? 'oculta' : 'general');
+  const nextVis = currentVis === 'general' ? 'exclusiva' : (currentVis === 'exclusiva' ? 'oculta' : 'general');
+  a.visibility = nextVis;
+  a.active = nextVis !== 'oculta';
   saveToStorage(STORE_STORAGE_KEYS.PAYMENT_ACCOUNTS, STORE_STATE.paymentAccounts);
   renderAdminAccountsList();
+  renderAdminItemAccountsSelector();
 }
 
 function deletePaymentAccount(id) {
   STORE_STATE.paymentAccounts = STORE_STATE.paymentAccounts.filter(x => x.id !== id);
   saveToStorage(STORE_STORAGE_KEYS.PAYMENT_ACCOUNTS, STORE_STATE.paymentAccounts);
   renderAdminAccountsList();
+  renderAdminItemAccountsSelector();
 }
 
 // --- Admin Pasarela: Tipos de Pago ---
@@ -2003,11 +2222,13 @@ function deletePaymentPlan(id) {
 // --- Admin Tienda & Seguridad ---
 function handleSaveStoreConfig(e) {
   e.preventDefault();
+  const emailEl = document.getElementById('cfg-admin-email');
   STORE_STATE.config = {
     ...STORE_STATE.config,
     brandName: document.getElementById('cfg-brand-name').value.trim(),
     tagline: document.getElementById('cfg-tagline').value.trim(),
     whatsappNumber: normalizeWhatsAppPhone(document.getElementById('cfg-wa-number').value.trim()),
+    adminEmail: emailEl ? emailEl.value.trim() : (STORE_STATE.config.adminEmail || ''),
     currencySymbol: document.getElementById('cfg-currency').value.trim() || '$',
     heroGreeting: document.getElementById('cfg-hero-greeting').value.trim(),
     heroHighlight: document.getElementById('cfg-hero-highlight').value.trim(),
@@ -2529,6 +2750,33 @@ function handleAddImageUrl(target) {
   renderDraftImagesPreview(target);
 }
 
+function handleAddMultipleImageUrls(target) {
+  const inputId = target === 'item' ? 'item-multiple-urls-input' : 'prj-multiple-urls-input';
+  const textarea = document.getElementById(inputId);
+  if (!textarea) return;
+  const rawText = textarea.value.trim();
+  if (!rawText) return;
+
+  const lines = rawText.split(/[\r\n,]+/).map(s => s.trim()).filter(Boolean);
+  if (!lines.length) return;
+
+  const arr = target === 'item' ? STORE_STATE.draftItemImages : STORE_STATE.draftProjectImages;
+  let addedCount = 0;
+  for (const line of lines) {
+    if (line.startsWith('http://') || line.startsWith('https://')) {
+      arr.push(normalizeExternalImageUrl(line));
+      addedCount++;
+    }
+  }
+  textarea.value = '';
+  renderDraftImagesPreview(target);
+  if (addedCount > 0) {
+    showToast(`Se agregaron ${addedCount} foto(s) de Google Drive / Nube`, 'success');
+  } else {
+    showToast('Pega enlaces válidos que comiencen con http/https', 'error');
+  }
+}
+
 function removeDraftImage(target, idx) {
   const arr = target === 'item' ? STORE_STATE.draftItemImages : STORE_STATE.draftProjectImages;
   arr.splice(idx, 1);
@@ -2544,9 +2792,10 @@ function renderDraftImagesPreview(target) {
     return;
   }
   el.innerHTML = arr.map((src, i) => `
-    <div class="relative w-16 h-16 rounded-xl overflow-hidden border border-slate-700 group shrink-0">
+    <div class="relative w-16 h-16 rounded-xl overflow-hidden border ${i === 0 ? 'border-amber-400 ring-2 ring-amber-400/30' : 'border-slate-700'} group shrink-0">
       <img src="${src}" alt="Foto ${i + 1}" class="w-full h-full object-cover" />
-      <button type="button" onclick="removeDraftImage('${target}', ${i})" class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center shadow">&times;</button>
+      ${i === 0 ? `<span class="absolute bottom-0 inset-x-0 bg-amber-500 text-slate-950 font-extrabold text-[9px] text-center leading-tight py-0.5">Portada</span>` : `<span class="absolute bottom-0 inset-x-0 bg-slate-900/80 text-sky-300 font-bold text-[9px] text-center leading-tight py-0.5">Foto ${i + 1}</span>`}
+      <button type="button" onclick="removeDraftImage('${target}', ${i})" title="Eliminar foto" class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center shadow">&times;</button>
     </div>
   `).join('');
 }
@@ -2666,10 +2915,11 @@ function renderTrabajosModule() {
   const filtered = STORE_STATE.activeJobs.filter(j => {
     const matchesStatus = STORE_STATE.jobStatusFilter === 'todos' || j.status === STORE_STATE.jobStatusFilter;
     const q = STORE_STATE.jobSearchQuery;
+    const sName = (j.serviceName || j.serviceTitle || j.title || '').toLowerCase();
     const matchesSearch = !q ||
-      j.code.toLowerCase().includes(q) ||
-      j.clientName.toLowerCase().includes(q) ||
-      j.serviceName.toLowerCase().includes(q);
+      (j.code && j.code.toLowerCase().includes(q)) ||
+      (j.clientName && j.clientName.toLowerCase().includes(q)) ||
+      sName.includes(q);
     return matchesStatus && matchesSearch;
   });
 
@@ -2679,12 +2929,15 @@ function renderTrabajosModule() {
   }
 
   grid.innerHTML = filtered.map(j => {
-    const timeInfo = computeJobDeadlineInfo(j.contractDate, j.dueDate, j.status);
+    const cDate = j.contractDate || j.startDate;
+    const dDate = j.dueDate || j.endDate;
+    const sName = j.serviceName || j.serviceTitle || j.title || 'Servicio';
+    const timeInfo = computeJobDeadlineInfo(cDate, dDate, j.status);
     const hasPrice = !j.priceOnRequest && j.totalAmount !== null && j.totalAmount !== undefined && j.totalAmount !== '' && Number(j.totalAmount) > 0;
     const total = hasPrice ? Number(j.totalAmount || 0) : 0;
     const paid = hasPrice ? Number(j.paidAmount || 0) : 0;
     const pending = hasPrice ? Math.max(0, total - paid) : 0;
-    const pct = Math.min(100, Math.max(0, Number(j.progress || 0)));
+    const pct = Math.min(100, Math.max(0, Number(j.progress || (j.isFreeBenefit ? 25 : 0))));
 
     const statusBadgeCls = j.status === 'Completado'
       ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
@@ -2694,34 +2947,37 @@ function renderTrabajosModule() {
       ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
       : 'bg-sky-500/15 text-sky-300 border-sky-500/30';
 
-    const waMsg = `¡Hola! Consulto sobre mi trabajo activo *${j.code}* (${j.serviceName} - Cliente: ${j.clientName}).`;
+    const waMsg = `¡Hola! Consulto sobre mi trabajo activo *${j.code}* (${sName} - Cliente: ${j.clientName}).`;
 
     return `
       <article class="bento-card bento-card-hover p-5 flex flex-col justify-between gap-4">
         <div class="space-y-3">
           <div class="flex items-center justify-between gap-2 flex-wrap">
             <span class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-slate-800 text-sky-300 border border-slate-700">${escapeHtml(j.code)}</span>
-            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusBadgeCls}">${escapeHtml(j.status)}</span>
+            <div class="flex items-center gap-1.5 flex-wrap">
+              ${j.isFreeBenefit ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">🎁 Beneficio Especial</span>` : ''}
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusBadgeCls}">${escapeHtml(j.status)}</span>
+            </div>
           </div>
 
           <div>
-            <h3 class="font-bold text-white text-base leading-snug">${escapeHtml(j.serviceName)}</h3>
+            <h3 class="font-bold text-white text-base leading-snug">${escapeHtml(sName)}</h3>
             <div class="text-xs text-slate-400 mt-0.5">Cliente: <strong class="text-slate-200">${escapeHtml(j.clientName)}</strong></div>
           </div>
 
           <!-- Fechas de Contrato y Vencimiento -->
           <div class="grid grid-cols-2 gap-2 p-3 rounded-2xl bg-slate-900/90 border border-slate-800 text-xs">
             <div>
-              <div class="text-[10px] text-slate-400">Fecha de contrato</div>
-              <div class="font-bold text-white mt-0.5">${formatJobDate(j.contractDate)}</div>
+              <div class="text-[10px] text-slate-400">Fecha de inicio / contrato</div>
+              <div class="font-bold text-white mt-0.5">${formatJobDate(cDate)}</div>
             </div>
             <div>
-              <div class="text-[10px] text-slate-400">Vence / Entrega</div>
-              <div class="font-bold text-amber-300 mt-0.5">${formatJobDate(j.dueDate)}</div>
+              <div class="text-[10px] text-slate-400">Plazo / Vence</div>
+              <div class="font-bold text-amber-300 mt-0.5">${formatJobDate(dDate)}</div>
             </div>
             <div class="col-span-2 pt-2 border-t border-slate-800 flex items-center justify-between">
               <span class="text-[11px] text-slate-400">Tiempo restante:</span>
-              <span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${timeInfo.badgeCls}">${timeInfo.label}</span>
+              <span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${timeInfo.badgeCls}">${j.durationDays ? (j.durationDays + ' días de vigencia') : timeInfo.label}</span>
             </div>
           </div>
 
@@ -3420,10 +3676,18 @@ function showCustomerPaymentConfirmedPopup(report, job) {
 
 function generateRandomCouponCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = 'ASTRO-';
+  let code = 'CREATIVE-';
   for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
   const el = document.getElementById('cpn-code');
   if (el) el.value = code;
+}
+
+function toggleCouponKindFields() {
+  const kind = document.getElementById('cpn-kind') ? document.getElementById('cpn-kind').value : 'asesoria';
+  const discWrap = document.getElementById('cpn-discount-wrap');
+  const durWrap = document.getElementById('cpn-duration-wrap');
+  if (discWrap) discWrap.classList.toggle('hidden', kind !== 'descuento');
+  if (durWrap) durWrap.classList.toggle('hidden', kind === 'descuento');
 }
 
 function renderAdminCouponsList() {
@@ -3434,23 +3698,77 @@ function renderAdminCouponsList() {
     return;
   }
   el.innerHTML = STORE_STATE.coupons.map(c => {
-    const valLabel = c.discountValue > 0
-      ? (c.discountType === 'fixed' ? `-$${c.discountValue}` : `-${c.discountValue}%`)
-      : 'Beneficio Especial';
+    const isDescuento = c.kind === 'descuento';
+    const isAsesoria = c.kind === 'asesoria';
+    const isTrabajo = c.kind === 'trabajo_gratis';
+
+    let kindLabel = 'Beneficio Especial';
+    let kindBg = 'bg-purple-500/20 text-purple-300 border-purple-500/40';
+    if (isDescuento) {
+      kindLabel = c.discountType === 'fixed' ? `-$${c.discountValue}` : `-${c.discountValue}%`;
+      kindBg = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+    } else if (isAsesoria) {
+      kindLabel = `Asesoría (${c.durationDays || 8} días)`;
+      kindBg = 'bg-sky-500/20 text-sky-300 border-sky-500/40';
+    } else if (isTrabajo) {
+      kindLabel = `Trabajo Gratis (${c.durationDays || 8} días)`;
+      kindBg = 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+    }
+
+    const maxUses = c.maxUses !== null && c.maxUses !== undefined ? Number(c.maxUses) : null;
+    const usedCount = Number(c.usedCount || 0);
+    const isExhausted = maxUses !== null && usedCount >= maxUses;
+    const isExpired = c.expires && new Date(c.expires + 'T23:59:59') < new Date();
+    const isActive = c.active !== false && !isExhausted && !isExpired;
+
+    const usesLabel = maxUses !== null ? `${usedCount}/${maxUses} usados` : `${usedCount} canjes (Ilimitado)`;
+    const redemptions = Array.isArray(c.redemptions) ? c.redemptions : [];
+
     return `
-      <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-        <div class="min-w-0">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 font-extrabold">${escapeHtml(c.code)}</span>
-            <span class="font-bold text-emerald-400">${valLabel}</span>
-            ${c.expiresAt ? `<span class="text-amber-300 font-semibold">Vence: ${escapeHtml(c.expiresAt)}</span>` : `<span class="text-slate-500">Sin vencimiento</span>`}
+      <div class="p-4 rounded-2xl bg-slate-900/90 border ${isExhausted ? 'border-rose-500/30 bg-rose-950/10' : 'border-slate-800'} space-y-3 text-xs">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div class="min-w-0 flex items-center gap-2 flex-wrap">
+            <span class="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 text-sky-300 font-mono font-extrabold text-sm tracking-wider">${escapeHtml(c.code)}</span>
+            <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${kindBg}">${kindLabel}</span>
+            <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold ${isExhausted ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' : (isActive ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-slate-800 text-slate-400')}">
+              ${isExhausted ? 'Agotado' : (isExpired ? 'Vencido' : (isActive ? 'Activo' : 'Inactivo'))} · ${usesLabel}
+            </span>
+            ${c.expires ? `<span class="text-amber-300 font-semibold text-[11px]">Vence: ${escapeHtml(c.expires)}</span>` : ''}
           </div>
-          <p class="text-slate-300 mt-1">${escapeHtml(c.specifications)}</p>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button onclick="toggleCouponActive('${c.id}')" class="px-2.5 py-1 rounded-lg font-bold ${c.active !== false ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'}">
+              ${c.active !== false ? 'Activo' : 'Inactivo'}
+            </button>
+            ${maxUses !== null ? `
+              <button onclick="resetCouponUses('${c.id}')" title="Restablecer contador a 0 para que se pueda volver a usar" class="px-2.5 py-1 rounded-lg font-bold bg-amber-500/20 text-amber-300 hover:bg-amber-500/30">
+                Reiniciar
+              </button>
+            ` : ''}
+            <button onclick="deleteCoupon('${c.id}')" class="px-2.5 py-1 rounded-lg font-semibold bg-rose-500/15 text-rose-300 hover:bg-rose-500/25">
+              Eliminar
+            </button>
+          </div>
         </div>
-        <div class="flex gap-2 shrink-0">
-          <button onclick="toggleCouponActive('${c.id}')" class="px-2.5 py-1 rounded-lg font-bold ${c.active !== false ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'}">${c.active !== false ? 'Activo' : 'Inactivo'}</button>
-          <button onclick="deleteCoupon('${c.id}')" class="px-2.5 py-1 rounded-lg font-semibold bg-rose-500/15 text-rose-300">Eliminar</button>
-        </div>
+
+        <p class="text-slate-300 text-xs leading-relaxed"><strong class="text-white">Especificaciones:</strong> ${escapeHtml(c.specifications || 'Sin detalle')}</p>
+
+        ${redemptions.length ? `
+          <div class="pt-2 border-t border-slate-800/80">
+            <div class="text-[11px] font-bold text-slate-400 mb-1.5">Historial de Personas que Canjearon este Código:</div>
+            <div class="space-y-1">
+              ${redemptions.map(r => `
+                <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-950 border border-slate-800/70 text-[11px]">
+                  <div class="flex items-center gap-2">
+                    <span class="font-bold text-white">${escapeHtml(r.clientName || 'Cliente')}</span>
+                    <span class="text-emerald-400 font-mono">${escapeHtml(r.clientPhone || '')}</span>
+                    ${r.jobCode ? `<span class="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono text-[10px]">Trabajo: ${escapeHtml(r.jobCode)}</span>` : ''}
+                  </div>
+                  <span class="text-slate-500">${escapeHtml(r.dateFormatted || r.redeemedAt || '')}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
       </div>
     `;
   }).join('');
@@ -3460,9 +3778,12 @@ function handleSaveCoupon(e) {
   e.preventDefault();
   const code = document.getElementById('cpn-code').value.trim().toUpperCase();
   const kind = document.getElementById('cpn-kind').value;
-  const discountType = document.getElementById('cpn-discount-type').value;
-  const discountValue = parseFloat(document.getElementById('cpn-discount-val').value) || 0;
-  const expiresAt = document.getElementById('cpn-expires').value;
+  const maxUsesRaw = document.getElementById('cpn-max-uses') ? document.getElementById('cpn-max-uses').value : '1';
+  const maxUses = maxUsesRaw === 'ilimitado' ? null : Number(maxUsesRaw || 1);
+  const durationDays = parseInt(document.getElementById('cpn-duration-days') ? document.getElementById('cpn-duration-days').value : 8) || 8;
+  const discountType = document.getElementById('cpn-discount-type') ? document.getElementById('cpn-discount-type').value : 'percent';
+  const discountValue = parseFloat(document.getElementById('cpn-discount-val') ? document.getElementById('cpn-discount-val').value : 0) || 0;
+  const expires = document.getElementById('cpn-expires') ? document.getElementById('cpn-expires').value : '';
   const specifications = document.getElementById('cpn-specs').value.trim();
   if (!code) return;
 
@@ -3470,16 +3791,36 @@ function handleSaveCoupon(e) {
     id: 'cpn-' + Date.now(),
     code,
     kind,
+    maxUses,
+    usedCount: 0,
+    durationDays,
     discountType,
     discountValue,
-    expiresAt,
+    expires: expires || null,
     specifications,
-    active: true
+    active: true,
+    redemptions: []
   });
+
   saveToStorage(STORE_STORAGE_KEYS.COUPONS, STORE_STATE.coupons);
-  ['cpn-code', 'cpn-expires', 'cpn-specs'].forEach(id => { document.getElementById(id).value = ''; });
+  ['cpn-code', 'cpn-expires', 'cpn-specs'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
   renderAdminCouponsList();
-  showToast(`Código ${code} creado`);
+  renderAdminNotificationsCenter();
+  showToast(`Código ${code} creado exitosamente`, 'success');
+}
+
+function resetCouponUses(id) {
+  const c = STORE_STATE.coupons.find(x => x.id === id);
+  if (!c) return;
+  c.usedCount = 0;
+  c.active = true;
+  saveToStorage(STORE_STORAGE_KEYS.COUPONS, STORE_STATE.coupons);
+  renderAdminCouponsList();
+  renderAdminNotificationsCenter();
+  showToast(`Contador del código ${c.code} reiniciado a 0 usos`, 'success');
 }
 
 function toggleCouponActive(id) {
@@ -3488,29 +3829,291 @@ function toggleCouponActive(id) {
   c.active = c.active === false;
   saveToStorage(STORE_STORAGE_KEYS.COUPONS, STORE_STATE.coupons);
   renderAdminCouponsList();
+  renderAdminNotificationsCenter();
 }
 
 function deleteCoupon(id) {
   STORE_STATE.coupons = STORE_STATE.coupons.filter(x => x.id !== id);
   saveToStorage(STORE_STORAGE_KEYS.COUPONS, STORE_STATE.coupons);
   renderAdminCouponsList();
+  renderAdminNotificationsCenter();
+}
+
+function renderCanjeModule() {
+  const box = document.getElementById('canje-result-box');
+  if (box) box.classList.add('hidden');
+}
+
+async function handleRedeemPublicSpecialCode(e) {
+  e.preventDefault();
+  const codeInput = document.getElementById('canje-code-input');
+  const nameInput = document.getElementById('canje-name-input');
+  const phoneInput = document.getElementById('canje-phone-input');
+  const resultBox = document.getElementById('canje-result-box');
+
+  const rawCode = codeInput ? codeInput.value.trim().toUpperCase() : '';
+  const clientName = nameInput ? nameInput.value.trim() : '';
+  const clientPhone = phoneInput ? phoneInput.value.trim() : '';
+
+  if (!rawCode || !clientName || !clientPhone) {
+    showToast('Por favor completa todos los campos requeridos', 'error');
+    return;
+  }
+
+  if (window.storeCloud && window.storeCloud.isConnected) {
+    await syncAllFromSupabase(false);
+  }
+
+  const c = STORE_STATE.coupons.find(x => x.code.toUpperCase() === rawCode);
+  if (!c) {
+    showToast(`El código "${rawCode}" no existe o fue escrito incorrectamente`, 'error');
+    return;
+  }
+
+  if (c.active === false) {
+    showToast(`El código "${rawCode}" ya fue utilizado o se encuentra inactivo`, 'error');
+    return;
+  }
+
+  if (c.expires && new Date(c.expires + 'T23:59:59') < new Date()) {
+    showToast(`El código "${rawCode}" venció el ${c.expires}`, 'error');
+    return;
+  }
+
+  const maxUses = c.maxUses !== null && c.maxUses !== undefined ? Number(c.maxUses) : null;
+  const currentUses = Number(c.usedCount || 0);
+
+  if (maxUses !== null && currentUses >= maxUses) {
+    c.active = false;
+    saveToStorage(STORE_STORAGE_KEYS.COUPONS, STORE_STATE.coupons);
+    showToast(`Este código ya alcanzó su límite de usos y no tiene más cupos disponibles`, 'error');
+    return;
+  }
+
+  c.usedCount = currentUses + 1;
+  if (maxUses !== null && c.usedCount >= maxUses) {
+    c.active = false;
+  }
+
+  if (!Array.isArray(c.redemptions)) c.redemptions = [];
+  const now = new Date();
+  const dateStr = now.toLocaleDateString();
+  const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const redemption = {
+    id: 'red-' + Date.now(),
+    clientName,
+    clientPhone,
+    redeemedAt: now.toISOString(),
+    dateFormatted: `${dateStr} a las ${timeStr}`,
+    jobCode: null
+  };
+
+  let linkedJob = null;
+  const isFreeService = c.kind === 'asesoria' || c.kind === 'trabajo_gratis' || c.kind === 'especial';
+
+  if (isFreeService) {
+    const nextNum = 101 + STORE_STATE.activeJobs.length + Math.floor(Math.random() * 10);
+    const jobCode = `SRV-${nextNum}`;
+    const days = Number(c.durationDays || 8);
+    const endDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+
+    const servText = `${c.kind === 'asesoria' ? 'Asesoría Gratuita' : 'Trabajo Bonificado'}: ${c.specifications}`;
+    linkedJob = {
+      id: 'job-' + Date.now(),
+      code: jobCode,
+      clientName,
+      clientPhone,
+      serviceName: servText,
+      serviceTitle: servText,
+      status: 'En progreso',
+      durationDays: days,
+      startDate: dateStr,
+      endDate: endDate.toLocaleDateString(),
+      contractDate: dateStr,
+      dueDate: endDate.toLocaleDateString(),
+      totalAmount: 0,
+      paidAmount: 0,
+      priceOnRequest: false,
+      purchaseMode: 'gratis',
+      purchaseDetail: `${days} días de vigencia activa`,
+      isFreeBenefit: true,
+      couponCode: c.code,
+      deliverables: [],
+      createdAt: now.toISOString()
+    };
+
+    STORE_STATE.activeJobs.unshift(linkedJob);
+    saveToStorage(STORE_STORAGE_KEYS.ACTIVE_JOBS, STORE_STATE.activeJobs);
+    redemption.jobCode = jobCode;
+  }
+
+  c.redemptions.unshift(redemption);
+  saveToStorage(STORE_STORAGE_KEYS.COUPONS, STORE_STATE.coupons);
+
+  const waMsg = isFreeService
+    ? `¡Hola Creative Store! Acabo de canjear el código especial *${c.code}* para: *${c.specifications}* (${c.durationDays || 8} días). Mis datos: ${clientName} - Tel: ${clientPhone}. Código de servicio: ${redemption.jobCode || 'N/A'}. ¡Quedo atento para comenzar!`
+    : `¡Hola Creative Store! He validado el código promocional *${c.code}* (${c.specifications}) a nombre de ${clientName} - Tel: ${clientPhone}.`;
+
+  const waUrl = buildWhatsAppUrl(waMsg, STORE_STATE.config);
+
+  if (resultBox) {
+    resultBox.classList.remove('hidden');
+    resultBox.innerHTML = `
+      <div class="flex items-center gap-2 text-emerald-400 font-extrabold text-sm sm:text-base">
+        <i data-lucide="check-circle" class="w-5 h-5"></i>
+        <span>¡Código Canjeado con Éxito!</span>
+      </div>
+      <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5 text-xs">
+        <div><strong class="text-white">Beneficio:</strong> <span class="text-indigo-300 font-bold">${escapeHtml(c.specifications)}</span></div>
+        ${linkedJob ? `
+          <div><strong class="text-white">Código de Trabajo / Servicio:</strong> <span class="text-sky-300 font-mono font-bold">${linkedJob.code}</span></div>
+          <div><strong class="text-white">Duración Asignada:</strong> <span class="text-amber-300 font-bold">${linkedJob.durationDays} días</span> (Inicia: ${linkedJob.startDate} · Culmina: ${linkedJob.endDate})</div>
+        ` : ''}
+        <div><strong class="text-white">Titular:</strong> <span class="text-slate-200">${escapeHtml(clientName)} (${escapeHtml(clientPhone)})</span></div>
+      </div>
+      <div class="flex flex-col sm:flex-row gap-2 pt-2">
+        <a href="${waUrl}" target="_blank" rel="noopener" class="flex-1 py-3 px-4 rounded-xl font-extrabold text-slate-950 bg-[#25D366] hover:bg-[#1ebe5d] transition text-center flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20">
+          <i data-lucide="message-circle" class="w-4 h-4"></i>
+          <span>Coordinar Servicio por WhatsApp</span>
+        </a>
+        ${linkedJob ? `
+          <button onclick="switchPublicTab('trabajos')" class="py-3 px-4 rounded-xl font-bold bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 transition">
+            Ver en Trabajos Activos
+          </button>
+        ` : ''}
+      </div>
+    `;
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  showToast('¡Código canjeado y activado exitosamente!', 'success');
+}
+
+function renderAdminNotificationsCenter() {
+  const listEl = document.getElementById('admin-notifications-list');
+  const countBadge = document.getElementById('admin-notif-count-badge');
+  const headerBadge = document.getElementById('admin-header-notif-badge');
+  if (!listEl) return;
+
+  const alerts = [];
+  const now = new Date();
+
+  const jobs = Array.isArray(STORE_STATE.activeJobs) ? STORE_STATE.activeJobs : [];
+  jobs.forEach(j => {
+    if (j.status !== 'Completado' && j.durationDays && (j.createdAt || j.startDate)) {
+      const start = j.createdAt ? new Date(j.createdAt) : new Date(j.startDate);
+      const totalMs = Number(j.durationDays) * 24 * 60 * 60 * 1000;
+      const end = new Date(start.getTime() + totalMs);
+      const diffMs = end.getTime() - now.getTime();
+      const diffDays = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+      const elapsedDays = Math.max(1, Math.floor((now.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1);
+
+      if (diffDays <= 0) {
+        alerts.push({
+          type: 'danger',
+          title: `⏳ Plazo Culminado: ${escapeHtml(j.clientName)}`,
+          message: `El servicio "${escapeHtml(j.serviceTitle)}" cumplió su plazo de ${j.durationDays} días (${j.endDate || 'Vencido'}).`,
+          clientPhone: j.clientPhone,
+          waReminder: `¡Hola ${j.clientName}! Te escribimos de Creative Store para notificarte que el plazo de ${j.durationDays} días de tu servicio "${j.serviceTitle}" ha culminado hoy. ¿Deseas coordinar entregables o renovar?`
+        });
+      } else if (diffDays <= 2) {
+        alerts.push({
+          type: 'warning',
+          title: `⚠️ Por Vencer en ${diffDays} día(s): ${escapeHtml(j.clientName)}`,
+          message: `El servicio "${escapeHtml(j.serviceTitle)}" está en su Día ${elapsedDays} de ${j.durationDays}. Vence el ${j.endDate || 'pronto'}.`,
+          clientPhone: j.clientPhone,
+          waReminder: `¡Hola ${j.clientName}! Te escribimos de Creative Store para recordarte que a tu servicio "${j.serviceTitle}" le quedan ${diffDays} día(s) de vigencia activa.`
+        });
+      }
+    }
+  });
+
+  const coupons = Array.isArray(STORE_STATE.coupons) ? STORE_STATE.coupons : [];
+  coupons.forEach(c => {
+    const redemptions = Array.isArray(c.redemptions) ? c.redemptions : [];
+    redemptions.slice(0, 3).forEach(r => {
+      alerts.push({
+        type: 'info',
+        title: `🎁 Canje de Código: ${escapeHtml(c.code)}`,
+        message: `${escapeHtml(r.clientName)} canjeó "${escapeHtml(c.specifications)}" el ${r.dateFormatted || ''} (WhatsApp: ${escapeHtml(r.clientPhone)}).`,
+        clientPhone: r.clientPhone,
+        waReminder: `¡Hola ${r.clientName}! Hemos recibido el canje de tu código ${c.code} en Creative Store.`
+      });
+    });
+  });
+
+  const pendingReports = (STORE_STATE.paymentReports || []).filter(r => r.status === 'pendiente');
+  if (pendingReports.length > 0) {
+    alerts.push({
+      type: 'warning',
+      title: `💰 ${pendingReports.length} Pago(s) Reportado(s) Pendiente(s)`,
+      message: `Tienes reportes de pago de clientes en espera de verificación en la pestaña Pasarela.`
+    });
+  }
+
+  const totalCount = alerts.length;
+  if (countBadge) countBadge.textContent = `${totalCount} alerta(s)`;
+  if (headerBadge) headerBadge.textContent = totalCount;
+
+  if (!alerts.length) {
+    listEl.innerHTML = `
+      <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400 flex items-center gap-2">
+        <i data-lucide="check" class="w-4 h-4 text-emerald-400"></i>
+        <span>Todo al día. No hay alertas de vencimiento pendientes en este momento.</span>
+      </div>
+    `;
+    if (window.lucide) window.lucide.createIcons();
+    return;
+  }
+
+  listEl.innerHTML = alerts.map(a => {
+    let borderClass = 'border-amber-500/30 bg-amber-950/20';
+    let textClass = 'text-amber-300';
+    if (a.type === 'danger') {
+      borderClass = 'border-rose-500/40 bg-rose-950/20';
+      textClass = 'text-rose-300';
+    } else if (a.type === 'info') {
+      borderClass = 'border-indigo-500/30 bg-indigo-950/20';
+      textClass = 'text-indigo-300';
+    }
+
+    return `
+      <div class="p-3.5 rounded-xl border ${borderClass} flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div class="space-y-0.5 min-w-0">
+          <div class="font-extrabold ${textClass}">${a.title}</div>
+          <div class="text-slate-300 text-[11px] leading-relaxed">${a.message}</div>
+        </div>
+        ${a.clientPhone && a.waReminder ? `
+          <a href="${buildWhatsAppUrl(a.waReminder, { whatsappNumber: a.clientPhone.replace(/\D/g, '') })}" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold text-[11px] border border-slate-700 shrink-0 flex items-center gap-1.5 self-start sm:self-auto transition">
+            <i data-lucide="send" class="w-3 h-3"></i>
+            <span>Avisar por WhatsApp</span>
+          </a>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+
+  if (window.lucide) window.lucide.createIcons();
 }
 
 function renderAdminSponsorsList() {
   const el = document.getElementById('admin-sponsors-list');
   if (!el) return;
   if (!STORE_STATE.sponsors.length) {
-    el.innerHTML = `<p class="text-xs text-slate-400">No hay patrocinadores o socios registrados.</p>`;
+    el.innerHTML = `<p class="text-xs text-slate-400">No hay divisiones, socios ni patrocinios registrados.</p>`;
     return;
   }
   const sym = STORE_STATE.config.currencySymbol;
   el.innerHTML = STORE_STATE.sponsors.map(s => {
     const priced = hasFixedPrice(s);
     const modeLabel = formatPurchaseModeLabel(s.purchaseMode, s.purchaseDetail);
+    const clsMeta = getSponsorClassificationMeta(s.classification || 'socio');
     return `
       <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
         <div class="min-w-0 space-y-0.5">
           <div class="flex items-center gap-2 flex-wrap">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${clsMeta.badgeCls}">${escapeHtml(clsMeta.label)}</span>
             <span class="font-bold text-white">${escapeHtml(s.name)}</span>
             <span class="text-amber-300 font-semibold">${escapeHtml(s.role)}</span>
             ${priced
@@ -3531,6 +4134,7 @@ function renderAdminSponsorsList() {
 
 function handleSaveSponsor(e) {
   e.preventDefault();
+  const classification = document.getElementById('spn-classification')?.value || 'socio';
   const name = document.getElementById('spn-name').value.trim();
   const role = document.getElementById('spn-role').value.trim();
   const url = document.getElementById('spn-url').value.trim();
@@ -3547,6 +4151,7 @@ function handleSaveSponsor(e) {
   const parsedPrice = priceOnRequest ? null : (Number.isFinite(parseFloat(rawPrice)) ? parseFloat(rawPrice) : null);
 
   const data = {
+    classification,
     name,
     role,
     url,
@@ -3569,7 +4174,7 @@ function handleSaveSponsor(e) {
   saveToStorage(STORE_STORAGE_KEYS.SPONSORS, STORE_STATE.sponsors);
   cancelEditSponsor();
   renderAdminSponsorsList();
-  showToast('Socio / Patrocinador guardado');
+  showToast('Registro guardado en Ecosistema y Divisiones');
 }
 
 function editSponsor(id) {
@@ -3578,9 +4183,10 @@ function editSponsor(id) {
   STORE_STATE.editingSponsorId = id;
   const titleEl = document.getElementById('admin-spn-form-title');
   const cancelBtn = document.getElementById('admin-spn-cancel-edit');
-  if (titleEl) titleEl.textContent = 'Editar Patrocinador / Socio';
+  if (titleEl) titleEl.textContent = 'Editar Registro (División / Socio / Patrocinio)';
   if (cancelBtn) cancelBtn.classList.remove('hidden');
 
+  if (document.getElementById('spn-classification')) document.getElementById('spn-classification').value = s.classification || 'socio';
   document.getElementById('spn-name').value = s.name || '';
   document.getElementById('spn-role').value = s.role || '';
   document.getElementById('spn-url').value = s.url || '';
@@ -3609,12 +4215,13 @@ function cancelEditSponsor() {
   STORE_STATE.editingSponsorId = null;
   const titleEl = document.getElementById('admin-spn-form-title');
   const cancelBtn = document.getElementById('admin-spn-cancel-edit');
-  if (titleEl) titleEl.textContent = '3. Mención de Patrocinadores y Socios';
+  if (titleEl) titleEl.textContent = '3. Ecosistema, Divisiones y Alianzas';
   if (cancelBtn) cancelBtn.classList.add('hidden');
   ['spn-name', 'spn-role', 'spn-url', 'spn-whatsapp', 'spn-price', 'spn-purchase-detail', 'spn-image-url', 'spn-desc'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  if (document.getElementById('spn-classification')) document.getElementById('spn-classification').value = 'division';
   const priceInput = document.getElementById('spn-price');
   const priceCb = document.getElementById('spn-price-on-request');
   if (priceInput) { priceInput.disabled = false; priceInput.classList.remove('opacity-50'); }
@@ -3911,6 +4518,10 @@ function refreshUIWithoutDisruptingUser(onlyPaymentCheck = false) {
 
   if (STORE_STATE.isAdminAuthenticated) {
     renderAdminClassificationUI();
+    if (!hasFormInputActivityIn('admin-item-form-card')) {
+      renderAdminItemPlansCheckboxes();
+      renderAdminItemAccountsSelector();
+    }
     renderAdminCatalogList();
     renderAdminProjectsList();
     renderAdminJobsList();
@@ -3920,12 +4531,14 @@ function refreshUIWithoutDisruptingUser(onlyPaymentCheck = false) {
     renderAdminPlansList();
     renderAdminCouponsList();
     renderAdminSponsorsList();
+    renderAdminNotificationsCenter();
     if (!hasFormInputActivityIn('admin-panel-tienda')) {
       const c = STORE_STATE.config;
       const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
       setVal('cfg-brand-name', c.brandName);
       setVal('cfg-tagline', c.tagline);
       setVal('cfg-wa-number', c.whatsappNumber);
+      setVal('cfg-admin-email', c.adminEmail || '');
       setVal('cfg-currency', c.currencySymbol);
       setVal('cfg-hero-greeting', c.heroGreeting);
       setVal('cfg-hero-highlight', c.heroHighlight);
@@ -3948,16 +4561,16 @@ async function syncAllFromSupabase(showFeedback = false, options = {}) {
     }
   };
 
-  applyKey(STORE_STORAGE_KEYS.CONFIG, v => { STORE_STATE.config = { ...DEFAULT_STORE_CONFIG, ...v }; });
+  applyKey(STORE_STORAGE_KEYS.CONFIG, v => { STORE_STATE.config = loadStoreConfig(); });
   applyKey(STORE_STORAGE_KEYS.CATALOG, v => { if (Array.isArray(v)) STORE_STATE.catalog = loadCatalogItems(); });
   applyKey(STORE_STORAGE_KEYS.SALES_CATALOGS, v => { if (Array.isArray(v)) STORE_STATE.salesCatalogs = v; });
   applyKey(STORE_STORAGE_KEYS.CATEGORIES, v => { if (Array.isArray(v)) STORE_STATE.categories = v; });
   applyKey(STORE_STORAGE_KEYS.PROJECTS, v => { if (Array.isArray(v)) STORE_STATE.projects = v; });
   applyKey(STORE_STORAGE_KEYS.ACTIVE_JOBS, v => { if (Array.isArray(v)) STORE_STATE.activeJobs = v; });
   applyKey(STORE_STORAGE_KEYS.PAYMENT_REPORTS, v => { if (Array.isArray(v)) STORE_STATE.paymentReports = v; });
-  applyKey(STORE_STORAGE_KEYS.PAYMENT_ACCOUNTS, v => { if (Array.isArray(v)) STORE_STATE.paymentAccounts = v; });
+  applyKey(STORE_STORAGE_KEYS.PAYMENT_ACCOUNTS, v => { if (Array.isArray(v)) STORE_STATE.paymentAccounts = loadPaymentAccounts(); });
   applyKey(STORE_STORAGE_KEYS.PAYMENT_PLANS, v => { if (Array.isArray(v)) STORE_STATE.paymentPlans = v; });
-  applyKey(STORE_STORAGE_KEYS.COUPONS, v => { if (Array.isArray(v)) STORE_STATE.coupons = v; });
+  applyKey(STORE_STORAGE_KEYS.COUPONS, v => { if (Array.isArray(v)) STORE_STATE.coupons = loadCoupons(); });
   applyKey(STORE_STORAGE_KEYS.SPONSORS, v => { if (Array.isArray(v)) STORE_STATE.sponsors = loadSponsors(); });
 
   // Actualizar vistas SIN resetear scroll ni interrumpir escritura en formularios

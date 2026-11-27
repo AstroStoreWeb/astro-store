@@ -36,14 +36,15 @@ const DEFAULT_SALES_CATALOGS = [];
 const DEFAULT_CATEGORIES = [];
 
 const DEFAULT_STORE_CONFIG = {
-  brandName: 'Astro Store',
-  tagline: 'Tienda Digital',
+  brandName: 'Creative Store',
+  tagline: 'Tienda Digital & Servicios Creativos',
   heroGreeting: 'Bienvenido a',
-  heroHighlight: 'Astro Store',
-  heroSubtitle: 'Explora productos y servicios digitales, selecciona tu plan de pago disponible y coordina directo por WhatsApp.',
+  heroHighlight: 'Creative Store',
+  heroSubtitle: 'Explora productos, servicios y recursos creativos, canjea tus códigos especiales o coordina tu proyecto directo por WhatsApp.',
   whatsappNumber: '584147966697',
+  adminEmail: '',
   currencySymbol: '$',
-  welcomeMessage: '¡Hola! Vengo desde Astro Store y me gustaría más información.'
+  welcomeMessage: '¡Hola! Vengo desde Creative Store y me gustaría más información.'
 };
 
 // Cuentas / Destinos de Pago — vacío hasta que el Admin agregue sus cuentas reales
@@ -96,7 +97,13 @@ function saveToStorage(key, value) {
 }
 
 function loadStoreConfig() {
-  return { ...DEFAULT_STORE_CONFIG, ...loadFromStorage(STORE_STORAGE_KEYS.CONFIG, DEFAULT_STORE_CONFIG) };
+  const merged = { ...DEFAULT_STORE_CONFIG, ...loadFromStorage(STORE_STORAGE_KEYS.CONFIG, DEFAULT_STORE_CONFIG) };
+  if (merged.brandName === 'Astro Store') merged.brandName = 'Creative Store';
+  if (merged.heroHighlight === 'Astro Store') merged.heroHighlight = 'Creative Store';
+  if (typeof merged.welcomeMessage === 'string' && merged.welcomeMessage.includes('Astro Store')) {
+    merged.welcomeMessage = merged.welcomeMessage.replace(/Astro Store/g, 'Creative Store');
+  }
+  return merged;
 }
 
 function loadCatalogItems() {
@@ -114,6 +121,8 @@ function loadCatalogItems() {
       purchaseMode: item.purchaseMode || 'unidad',
       purchaseDetail: item.purchaseDetail || '',
       salesCatalogId: item.salesCatalogId || '',
+      defaultAccountId: item.defaultAccountId || '',
+      allowedAccountIds: Array.isArray(item.allowedAccountIds) ? item.allowedAccountIds : [],
       allowedPlanIds: Array.isArray(item.allowedPlanIds) && item.allowedPlanIds.length
         ? item.allowedPlanIds
         : (priceOnRequest ? [] : ['plan-contado'])
@@ -152,7 +161,15 @@ const DEFAULT_SPONSORS = [];
 
 function loadCoupons() {
   const data = loadFromStorage(STORE_STORAGE_KEYS.COUPONS, DEFAULT_COUPONS);
-  return Array.isArray(data) ? data : [];
+  if (!Array.isArray(data)) return [];
+  return data.map(c => ({
+    ...c,
+    kind: c.kind || 'descuento',
+    maxUses: c.maxUses !== undefined && c.maxUses !== null ? (c.maxUses === '' ? null : Number(c.maxUses)) : (c.singleUse ? 1 : null),
+    usedCount: Number(c.usedCount || 0),
+    durationDays: c.durationDays ? Number(c.durationDays) : 0,
+    redemptions: Array.isArray(c.redemptions) ? c.redemptions : []
+  }));
 }
 
 function loadSponsors() {
@@ -163,6 +180,7 @@ function loadSponsors() {
     const hasPrice = rawPrice !== null && rawPrice !== undefined && rawPrice !== '' && Number.isFinite(Number(rawPrice));
     return {
       ...s,
+      classification: s.classification || 'socio',
       price: s.priceOnRequest ? null : (hasPrice ? Number(rawPrice) : null),
       priceOnRequest: Boolean(s.priceOnRequest || !hasPrice),
       purchaseMode: s.purchaseMode || 'mencion',
@@ -317,7 +335,16 @@ saveToStorage = function (key, value) {
 
 function loadPaymentAccounts() {
   const data = loadFromStorage(STORE_STORAGE_KEYS.PAYMENT_ACCOUNTS, DEFAULT_PAYMENT_ACCOUNTS);
-  return Array.isArray(data) ? data : DEFAULT_PAYMENT_ACCOUNTS.map(i => ({ ...i }));
+  const list = Array.isArray(data) ? data : DEFAULT_PAYMENT_ACCOUNTS.map(i => ({ ...i }));
+  return list.map(a => {
+    const vis = a.visibility || (a.active === false ? 'oculta' : 'general');
+    return {
+      ...a,
+      alias: a.alias || '',
+      visibility: vis,
+      active: vis !== 'oculta'
+    };
+  });
 }
 
 function loadPaymentPlans() {

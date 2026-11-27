@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Astro Store — Tienda Digital & Pasarela de Pagos</title>
-  <meta name="description" content="Tienda digital modular con pasarela de pagos configurada por producto y atención directa por WhatsApp." />
+  <title>Creative Store — Tienda Digital & Pasarela de Pagos</title>
+  <meta name="description" content="Creative Store — Tienda digital modular con pasarela de pagos, canje de códigos especiales y atención directa por WhatsApp." />
   <link rel="icon" type="image/png" href="assets/logo.png" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -29,12 +29,12 @@
   <header class="glass-nav sticky top-0 lg:static shrink-0 z-40">
     <div class="max-w-[1440px] mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-3">
       <!-- Marca -->
-      <div class="flex items-center gap-2.5 sm:gap-3 min-w-0 select-none" title="Astro Store">
-        <img src="assets/logo.png" alt="Logo Astro Store" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl shadow-md border border-white/10 object-cover shrink-0 pointer-events-none" />
+      <div class="flex items-center gap-2.5 sm:gap-3 min-w-0 select-none" title="Creative Store">
+        <img src="assets/logo.png" alt="Logo Creative Store" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl shadow-md border border-white/10 object-cover shrink-0 pointer-events-none" />
         <div class="pointer-events-none min-w-0">
           <div class="text-[11px] text-slate-400 leading-none mb-0.5 truncate" id="navbar-subtitle">Tienda Digital</div>
           <div class="flex items-center gap-2">
-            <span class="dyn-brand-name font-extrabold text-sm sm:text-lg tracking-tight text-white leading-none truncate">Astro Store</span>
+            <span class="dyn-brand-name font-extrabold text-sm sm:text-lg tracking-tight text-white leading-none truncate">Creative Store</span>
             <span id="navbar-mode-badge" class="hidden sm:inline-block px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">En línea</span>
           </div>
         </div>
@@ -78,7 +78,7 @@
             <div>
               <h1 class="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
                 <span id="dyn-hero-greeting">Bienvenido a</span>
-                <span id="dyn-hero-highlight" class="text-astro-gradient">Astro Store</span>
+                <span id="dyn-hero-highlight" class="text-astro-gradient">Creative Store</span>
               </h1>
               <p id="dyn-hero-subtitle" class="text-sm text-slate-400 mt-1 max-w-2xl"></p>
             </div>
@@ -167,6 +167,23 @@
             </div>
           </div>
 
+          <!-- Banner Promocional: Canje de Códigos y Asesorías Gratis -->
+          <div class="bento-card p-4 sm:p-5 border border-indigo-500/40 bg-gradient-to-r from-indigo-950/60 via-slate-900 to-sky-950/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
+            <div class="flex items-center gap-3.5">
+              <div class="w-11 h-11 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0">
+                <i data-lucide="gift" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h3 class="text-sm sm:text-base font-extrabold text-white">¿Tienes un Código Especial o Cupón de Asesoría?</h3>
+                <p class="text-xs text-slate-300">Desbloquea asesorías gratuitas por 8 o 10 días, trabajos bonificados o descuentos exclusivos.</p>
+              </div>
+            </div>
+            <button onclick="switchPublicTab('canje')" class="px-5 py-2.5 rounded-xl font-extrabold text-xs text-slate-950 bg-gradient-to-r from-amber-400 to-emerald-400 hover:opacity-95 transition whitespace-nowrap shadow-md flex items-center justify-center gap-1.5 shrink-0">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+              <span>Canjear Mi Código Ahora</span>
+            </button>
+          </div>
+
           <!-- Modo Portafolio: Trabajos Realizados -->
           <div class="bento-card p-5 space-y-4">
             <div class="flex items-center justify-between gap-2">
@@ -179,14 +196,22 @@
             <div id="home-portfolio-grid" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
           </div>
 
-          <!-- Patrocinadores y Socios Oficiales -->
-          <div id="home-sponsors-section" class="bento-card p-5 space-y-3 border border-indigo-500/20">
-            <div class="flex items-center justify-between gap-2">
-              <div class="flex items-center gap-2">
-                <i data-lucide="award" class="w-4 h-4 text-amber-400"></i>
-                <h2 class="text-sm font-extrabold text-white">Patrocinadores y Socios</h2>
+          <!-- Ecosistema, Divisiones y Alianzas -->
+          <div id="home-sponsors-section" class="bento-card p-5 space-y-3.5 border border-indigo-500/20">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div>
+                <div class="flex items-center gap-2">
+                  <i data-lucide="layers" class="w-4 h-4 text-amber-400"></i>
+                  <h2 class="text-sm sm:text-base font-extrabold text-white">Ecosistema, Divisiones y Alianzas</h2>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-0.5">Alineaciones de división propias, socios estratégicos y patrocinios</p>
               </div>
-              <span class="text-[11px] text-slate-400">Aliados de la tienda</span>
+              <div class="flex flex-wrap items-center gap-1 bg-slate-900/90 p-1 rounded-full border border-slate-800">
+                <button id="spn-filter-todos" onclick="setSponsorFilter('todos')" class="px-3 py-1 rounded-full text-[11px] font-bold bg-sky-600 text-white transition">Todos</button>
+                <button id="spn-filter-division" onclick="setSponsorFilter('division')" class="px-3 py-1 rounded-full text-[11px] font-medium text-slate-300 hover:text-white transition">Alineaciones de División</button>
+                <button id="spn-filter-socio" onclick="setSponsorFilter('socio')" class="px-3 py-1 rounded-full text-[11px] font-medium text-slate-300 hover:text-white transition">Socios</button>
+                <button id="spn-filter-patrocinio" onclick="setSponsorFilter('patrocinio')" class="px-3 py-1 rounded-full text-[11px] font-medium text-slate-300 hover:text-white transition">Patrocinios</button>
+              </div>
             </div>
             <div id="home-sponsors-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
           </div>
@@ -263,6 +288,84 @@
           </div>
 
           <div id="active-jobs-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
+        </section>
+
+        <!-- MÓDULO 2.85: CANJE DE CÓDIGOS PROMOCIONALES, BENEFICIOS Y ASESORÍAS GRATIS -->
+        <section id="pub-panel-canje" class="hidden space-y-5 animate-fade-in">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <h2 class="text-2xl font-extrabold text-white">Canjear Código Especial / Asesoría</h2>
+              <p class="text-xs sm:text-sm text-slate-400">Ingresa tu código promocional para desbloquear asesorías gratuitas, beneficios exclusivos o descuentos.</p>
+            </div>
+            <button onclick="switchPublicTab('trabajos')" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5">
+              <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+              <span>Ver Trabajos y Asesorías Activas</span>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <!-- Formulario de Canje -->
+            <div class="lg:col-span-7 bento-card p-6 border border-indigo-500/30 space-y-4">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0">
+                  <i data-lucide="gift" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <h3 class="text-base font-extrabold text-white">Reclamar Beneficio o Asesoría</h3>
+                  <p class="text-xs text-slate-400">Sin registros molestos ni contraseñas. Valida tu código en 1 clic y coordina directo por WhatsApp.</p>
+                </div>
+              </div>
+
+              <form onsubmit="handleRedeemPublicSpecialCode(event)" class="space-y-3.5">
+                <div>
+                  <label class="block text-xs font-bold text-slate-300 mb-1">Código Especial / Promocional *</label>
+                  <input id="canje-code-input" type="text" required placeholder="Ej. CREATIVE-VIP o ASESORIA8D" class="w-full bg-slate-950 text-white text-sm font-mono tracking-wider uppercase px-4 py-3 rounded-xl border border-indigo-500/50 focus:outline-none focus:border-indigo-400 shadow-inner" />
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Tu Nombre Completo *</label>
+                    <input id="canje-name-input" type="text" required placeholder="Ej. Carlos Pérez" class="w-full bg-slate-950 text-white text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-sky-500" />
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Tu WhatsApp de Contacto *</label>
+                    <input id="canje-phone-input" type="tel" required placeholder="Ej. 04147966697" class="w-full bg-slate-950 text-white text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-sky-500" />
+                  </div>
+                </div>
+                <button type="submit" id="canje-submit-btn" class="w-full py-3.5 rounded-xl font-extrabold text-white bg-gradient-to-r from-indigo-600 via-sky-600 to-emerald-500 hover:opacity-95 transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25">
+                  <i data-lucide="sparkles" class="w-4 h-4"></i>
+                  <span>Verificar y Desbloquear Código</span>
+                </button>
+              </form>
+
+              <!-- Resultado del Canje -->
+              <div id="canje-result-box" class="hidden p-5 rounded-2xl bg-slate-950 border border-emerald-500/40 space-y-3 animate-fade-in"></div>
+            </div>
+
+            <!-- Información / Beneficios -->
+            <div class="lg:col-span-5 bento-card p-6 flex flex-col justify-between bg-slate-900/95 space-y-4">
+              <div class="space-y-3">
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">Sistema de Recompensas</span>
+                <h3 class="text-base font-extrabold text-white">¿Cómo funcionan los Códigos Especiales?</h3>
+                <ul class="text-xs text-slate-300 space-y-2.5 leading-relaxed">
+                  <li class="flex items-start gap-2">
+                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5"></i>
+                    <span><strong>1 solo uso o cupos limitados:</strong> Cada código tiene un límite seguro. Al canjearlo, el sistema lo descuenta y asegura tu cupo único.</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5"></i>
+                    <span><strong>Asesorías y Trabajos Activos:</strong> Si tu código otorga una asesoría de 8 o 10 días, se registrará de inmediato en <em>Trabajos Activos</em> para el seguimiento de tu plazo.</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5"></i>
+                    <span><strong>Atención Directa:</strong> Al canjear, se abrirá tu comprobante para iniciar la coordinación inmediata por WhatsApp con el equipo.</span>
+                  </li>
+                </ul>
+              </div>
+              <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-400">
+                ¿Tienes dudas o necesitas un servicio? Escríbenos directamente a nuestro <a href="#" target="_blank" rel="noopener" class="dyn-wa-direct text-emerald-400 hover:underline font-bold">WhatsApp oficial</a>.
+              </div>
+            </div>
+          </div>
         </section>
 
         <!-- MÓDULO 3: PASARELA DE PAGO INDEPENDIENTE -->
@@ -362,7 +465,7 @@
           <div class="wb-card wb-coupons">
             <label class="wb-title">Cupón o Código Especial</label>
             <form onsubmit="handleApplyCartCoupon(event)">
-              <input id="cart-coupon-input" type="text" placeholder="Ingresa tu código (ej. ASTRO10)..." class="wb-input-field" />
+              <input id="cart-coupon-input" type="text" placeholder="Ingresa tu código (ej. CREATIVE10)..." class="wb-input-field" />
               <button type="submit">Aplicar</button>
             </form>
             <div id="cart-coupon-feedback" class="hidden px-3.5 pb-3 text-xs"></div>
