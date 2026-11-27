@@ -38,6 +38,10 @@ const STORE_STATE = {
   jobStatusFilter: 'todos',
   ledgerFilter: 'todos',
   ledgerSearch: '',
+  receiptsFilter: 'todos',
+  receiptsSearch: '',
+  receiptsGroupByClient: true,
+  receiptZoomLevel: 1,
   sponsorFilter: 'todos',
   cart: [],
   checkoutDirectItem: null,
@@ -1396,9 +1400,15 @@ function renderPasarelaModule() {
           </div>
 
           ${STORE_STATE.checkoutReceipt ? `
-            <div class="relative w-24 h-24 rounded-xl overflow-hidden border border-emerald-500/40">
-              <img src="${STORE_STATE.checkoutReceipt.dataUrl}" alt="Comprobante" class="w-full h-full object-cover" />
-              <button type="button" onclick="clearCheckoutReceipt()" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center">&times;</button>
+            <div class="flex items-center gap-3 pt-1">
+              <div class="relative w-24 h-24 rounded-xl overflow-hidden border border-emerald-500/40 shrink-0 cursor-pointer" onclick="previewCustomerCheckoutReceipt()" title="Toca para ver completo">
+                <img src="${STORE_STATE.checkoutReceipt.dataUrl}" alt="Comprobante" class="w-full h-full object-cover" />
+                <button type="button" onclick="event.stopPropagation(); clearCheckoutReceipt();" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center">&times;</button>
+              </div>
+              <div class="text-[11px] text-slate-300 space-y-1">
+                <div class="font-bold text-emerald-400">Capture adjuntado con éxito</div>
+                <div>Toca la miniatura para verificar que la referencia se lea con claridad antes de enviar.</div>
+              </div>
             </div>
           ` : ''}
         </div>
@@ -1418,16 +1428,32 @@ async function handleReceiptUpload(e) {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
   try {
-    const compressed = await compressImageFile(file, 1000, 0.82);
+    const compressed = await compressImageFile(file, 1280, 0.85);
     const finalUrl = window.storeCloud
       ? await window.storeCloud.uploadImageToConfiguredCloud(file, compressed)
       : compressed;
     STORE_STATE.checkoutReceipt = { dataUrl: finalUrl, fileName: file.name };
     renderPasarelaModule();
-    showToast('Comprobante cargado correctamente');
+    showToast('Comprobante cargado en alta nitidez');
   } catch (err) {
     showToast('No se pudo cargar el comprobante', 'error');
   }
+}
+
+function previewCustomerCheckoutReceipt() {
+  if (!STORE_STATE.checkoutReceipt || !STORE_STATE.checkoutReceipt.dataUrl) return;
+  const body = document.getElementById('item-detail-modal-body');
+  body.innerHTML = `
+    <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+      <div class="text-sm font-bold text-white">Vista Previa de tu Comprobante</div>
+      <button onclick="closeItemDetailModal()" class="p-2 rounded-xl bg-slate-800 text-slate-300"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+    <div class="overflow-auto max-h-[75vh] rounded-xl bg-slate-950 p-2 flex items-center justify-center">
+      <img src="${STORE_STATE.checkoutReceipt.dataUrl}" class="max-w-full max-h-[70vh] object-contain rounded-lg" />
+    </div>
+  `;
+  document.getElementById('item-detail-modal').classList.remove('hidden');
+  if (window.lucide) window.lucide.createIcons();
 }
 
 function clearCheckoutReceipt() {
@@ -3448,68 +3474,304 @@ function submitAbonoReport(e, jobId) {
   renderPasarelaModule();
 }
 
+function handleAdminReceiptsSearch(val) {
+  STORE_STATE.receiptsSearch = String(val || '').trim().toLowerCase();
+  renderAdminPaymentReportsList();
+}
+
+function setAdminReceiptsFilter(filterKey) {
+  STORE_STATE.receiptsFilter = filterKey || 'todos';
+  ['todos', 'con_capture', 'pendientes'].forEach(k => {
+    const btn = document.getElementById(`rcp-filter-${k}`);
+    if (!btn) return;
+    btn.className = k === STORE_STATE.receiptsFilter
+      ? 'px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-600 text-white'
+      : 'px-2.5 py-1 rounded-lg text-[11px] font-medium text-slate-300';
+  });
+  renderAdminPaymentReportsList();
+}
+
+function toggleAdminReceiptsGroupByClient() {
+  STORE_STATE.receiptsGroupByClient = !STORE_STATE.receiptsGroupByClient;
+  const btn = document.getElementById('rcp-group-btn');
+  if (btn) {
+    btn.textContent = STORE_STATE.receiptsGroupByClient ? 'Agrupado por Cliente' : 'Vista Cronológica';
+    btn.className = STORE_STATE.receiptsGroupByClient
+      ? 'px-3 py-2 rounded-xl text-[11px] font-bold bg-indigo-600 text-white transition'
+      : 'px-3 py-2 rounded-xl text-[11px] font-bold bg-slate-800 text-slate-300 border border-slate-700 transition';
+  }
+  renderAdminPaymentReportsList();
+}
+
+function renderSinglePaymentReportCardHtml(r, sym, usdRate) {
+  const stCls = r.status === 'Confirmado'
+    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+    : r.status === 'Rechazado'
+    ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+    : 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+
+  const dateStr = r.createdAt
+    ? new Date(r.createdAt).toLocaleString('es-VE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+    : '';
+
+  return `
+    <div class="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+      <div class="flex items-start gap-3 min-w-0">
+        ${r.receiptDataUrl ? `
+          <div onclick="previewAdminReceipt('${r.id}')" title="Toca para ver completo y hacer zoom" class="relative w-16 h-16 rounded-xl overflow-hidden border border-sky-500/40 cursor-pointer shrink-0 group bg-slate-950">
+            <img src="${r.receiptDataUrl}" alt="Capture" class="w-full h-full object-cover group-hover:scale-105 transition" />
+            <span class="absolute bottom-0 inset-x-0 bg-slate-950/85 text-sky-300 text-[9px] font-extrabold text-center py-0.5">Ver / Zoom</span>
+          </div>
+        ` : `
+          <div class="w-16 h-16 rounded-xl bg-slate-950 border border-slate-800 flex flex-col items-center justify-center text-slate-500 text-[9px] font-semibold shrink-0 text-center p-1">
+            <span>Sin capture</span>
+          </div>
+        `}
+        <div class="min-w-0 text-xs space-y-0.5">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 font-bold">${escapeHtml(r.jobCode)}</span>
+            <span class="font-bold text-white text-sm">${escapeHtml(r.customerName)}</span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${stCls}">${escapeHtml(r.status)}</span>
+            ${dateStr ? `<span class="text-[10px] text-slate-500">${escapeHtml(dateStr)}</span>` : ''}
+          </div>
+          <div class="text-slate-300 truncate">${escapeHtml(r.serviceName)} · <strong class="text-emerald-400">${escapeHtml(sym)}${Number(r.amountReported).toFixed(2)}</strong> (${formatBs(r.amountReported, usdRate)})</div>
+          <div class="text-slate-400">Cuenta: ${escapeHtml(r.accountMethod)} · Ref: <strong class="text-white select-all">${escapeHtml(r.reference || 'N/A')}</strong></div>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-1.5 shrink-0">
+        ${r.receiptDataUrl ? `
+          <button type="button" onclick="previewAdminReceipt('${r.id}')" class="px-3 py-1.5 rounded-xl text-[11px] font-bold bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/30 transition flex items-center gap-1">
+            <i data-lucide="zoom-in" class="w-3.5 h-3.5"></i>
+            <span>Ver / Zoom</span>
+          </button>
+          <button type="button" onclick="downloadPaymentReceipt('${r.id}')" class="px-3 py-1.5 rounded-xl text-[11px] font-bold bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 transition flex items-center gap-1">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            <span>Descargar</span>
+          </button>
+          <button type="button" onclick="deleteReceiptImageOnly('${r.id}')" title="Borra únicamente la foto para ahorrar espacio en la nube, conservando el pago" class="px-2.5 py-1.5 rounded-xl text-[11px] font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 transition">
+            Borrar Capture
+          </button>
+        ` : ''}
+        ${r.status === 'Pendiente' ? `
+          <button type="button" onclick="confirmPaymentReport('${r.id}')" class="px-3.5 py-1.5 rounded-xl text-xs font-extrabold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition">Confirmar Pago</button>
+          <button type="button" onclick="rejectPaymentReport('${r.id}')" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 transition">Rechazar</button>
+        ` : ''}
+        <button type="button" onclick="deletePaymentReport('${r.id}')" class="px-2.5 py-1.5 rounded-xl text-[11px] font-semibold bg-slate-800 text-slate-400 hover:text-rose-300">Eliminar</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderAdminPaymentReportsList() {
   const el = document.getElementById('admin-payment-reports-list');
   const badge = document.getElementById('admin-pending-payments-badge');
+  const cloudBadge = document.getElementById('admin-receipts-cloud-badge');
   if (!el) return;
 
   const sym = STORE_STATE.config.currencySymbol;
   const usdRate = STORE_STATE.bcvRates?.usd || 0;
-  const pendingCount = STORE_STATE.paymentReports.filter(r => r.status === 'Pendiente').length;
-  if (badge) badge.textContent = `${pendingCount} pendiente${pendingCount === 1 ? '' : 's'}`;
+  const allReports = Array.isArray(STORE_STATE.paymentReports) ? STORE_STATE.paymentReports : [];
+  const pendingCount = allReports.filter(r => r.status === 'Pendiente').length;
+  const withCaptureCount = allReports.filter(r => Boolean(r.receiptDataUrl)).length;
 
-  if (!STORE_STATE.paymentReports.length) {
+  if (badge) badge.textContent = `${pendingCount} pendiente${pendingCount === 1 ? '' : 's'}`;
+  if (cloudBadge) cloudBadge.textContent = `${withCaptureCount} capture${withCaptureCount === 1 ? '' : 's'} en nube`;
+
+  if (!allReports.length) {
     el.innerHTML = `<p class="text-xs text-slate-400">Aún no hay pagos o abonos reportados por clientes.</p>`;
     return;
   }
 
-  el.innerHTML = STORE_STATE.paymentReports.map(r => {
-    const stCls = r.status === 'Confirmado'
-      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-      : r.status === 'Rechazado'
-      ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-      : 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+  const q = STORE_STATE.receiptsSearch || '';
+  const flt = STORE_STATE.receiptsFilter || 'todos';
 
-    return `
-      <div class="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div class="flex items-start gap-3 min-w-0">
-          ${r.receiptDataUrl ? `<img src="${r.receiptDataUrl}" onclick="previewAdminReceipt('${r.id}')" title="Ver captura" class="w-14 h-14 rounded-xl object-cover border border-slate-700 cursor-pointer shrink-0" />` : ''}
-          <div class="min-w-0 text-xs space-y-0.5">
-            <div class="flex items-center gap-2 flex-wrap">
-              <span class="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 font-bold">${escapeHtml(r.jobCode)}</span>
-              <span class="font-bold text-white text-sm">${escapeHtml(r.customerName)}</span>
-              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${stCls}">${escapeHtml(r.status)}</span>
+  const filtered = allReports.filter(r => {
+    if (flt === 'con_capture' && !r.receiptDataUrl) return false;
+    if (flt === 'pendientes' && r.status !== 'Pendiente') return false;
+    if (!q) return true;
+    return (
+      (r.customerName || '').toLowerCase().includes(q) ||
+      (r.jobCode || '').toLowerCase().includes(q) ||
+      (r.reference || '').toLowerCase().includes(q) ||
+      (r.serviceName || '').toLowerCase().includes(q)
+    );
+  });
+
+  if (!filtered.length) {
+    el.innerHTML = `<p class="text-xs text-slate-400">No hay comprobantes que coincidan con ese filtro o búsqueda.</p>`;
+    return;
+  }
+
+  if (STORE_STATE.receiptsGroupByClient) {
+    const groupsMap = new Map();
+    filtered.forEach(r => {
+      const clientKey = (r.customerName || 'Cliente sin nombre').trim();
+      if (!groupsMap.has(clientKey)) groupsMap.set(clientKey, []);
+      groupsMap.get(clientKey).push(r);
+    });
+
+    el.innerHTML = Array.from(groupsMap.entries()).map(([clientName, list]) => {
+      const totalAmt = list.reduce((acc, item) => acc + Number(item.amountReported || 0), 0);
+      const capturesInGroup = list.filter(item => Boolean(item.receiptDataUrl)).length;
+      return `
+        <div class="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2.5">
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800/80">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-300 text-xs font-extrabold">
+                ${escapeHtml(clientName.charAt(0).toUpperCase())}
+              </div>
+              <div>
+                <div class="text-sm font-extrabold text-white">${escapeHtml(clientName)}</div>
+                <div class="text-[11px] text-slate-400">${list.length} pago(s) · ${capturesInGroup} capture(s) · Total reportado: <strong class="text-emerald-400">${escapeHtml(sym)}${totalAmt.toFixed(2)}</strong></div>
+              </div>
             </div>
-            <div class="text-slate-300 truncate">${escapeHtml(r.serviceName)} · <strong class="text-emerald-400">${escapeHtml(sym)}${Number(r.amountReported).toFixed(2)}</strong> (${formatBs(r.amountReported, usdRate)})</div>
-            <div class="text-slate-400">Cuenta: ${escapeHtml(r.accountMethod)} · Ref: <strong class="text-white">${escapeHtml(r.reference)}</strong></div>
+          </div>
+          <div class="space-y-2">
+            ${list.map(r => renderSinglePaymentReportCardHtml(r, sym, usdRate)).join('')}
           </div>
         </div>
+      `;
+    }).join('');
+  } else {
+    el.innerHTML = filtered.map(r => renderSinglePaymentReportCardHtml(r, sym, usdRate)).join('');
+  }
 
-        <div class="flex flex-wrap gap-2 shrink-0">
-          ${r.status === 'Pendiente' ? `
-            <button onclick="confirmPaymentReport('${r.id}')" class="px-3.5 py-2 rounded-xl text-xs font-extrabold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition">Confirmar Pago</button>
-            <button onclick="rejectPaymentReport('${r.id}')" class="px-3 py-2 rounded-xl text-xs font-bold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 transition">Rechazar</button>
-          ` : ''}
-          <button onclick="deletePaymentReport('${r.id}')" class="px-2.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-slate-400 hover:text-white">Eliminar</button>
-        </div>
-      </div>
-    `;
-  }).join('');
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function setReceiptZoom(deltaOrReset) {
+  if (deltaOrReset === 'reset') {
+    STORE_STATE.receiptZoomLevel = 1;
+  } else {
+    const next = Number((STORE_STATE.receiptZoomLevel + deltaOrReset).toFixed(2));
+    STORE_STATE.receiptZoomLevel = Math.min(4, Math.max(0.5, next));
+  }
+  const img = document.getElementById('admin-receipt-zoom-img');
+  const lbl = document.getElementById('admin-receipt-zoom-label');
+  if (img) {
+    img.style.width = `${Math.round(STORE_STATE.receiptZoomLevel * 100)}%`;
+    img.style.maxWidth = STORE_STATE.receiptZoomLevel > 1 ? 'none' : '100%';
+  }
+  if (lbl) lbl.textContent = `${Math.round(STORE_STATE.receiptZoomLevel * 100)}%`;
 }
 
 function previewAdminReceipt(reportId) {
   const r = STORE_STATE.paymentReports.find(x => x.id === reportId);
   if (!r || !r.receiptDataUrl) return;
+  STORE_STATE.receiptZoomLevel = 1;
+  const sym = STORE_STATE.config.currencySymbol;
   const body = document.getElementById('item-detail-modal-body');
   body.innerHTML = `
-    <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-      <div class="text-sm font-bold text-white">Comprobante · ${escapeHtml(r.jobCode)} (${escapeHtml(r.customerName)})</div>
-      <button onclick="closeItemDetailModal()" class="p-2 rounded-xl bg-slate-800 text-slate-300"><i data-lucide="x" class="w-5 h-5"></i></button>
+    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+      <div>
+        <div class="text-sm font-extrabold text-white">Comprobante · ${escapeHtml(r.jobCode)} — ${escapeHtml(r.customerName)}</div>
+        <div class="text-[11px] text-slate-400">Monto: <strong class="text-emerald-400">${escapeHtml(sym)}${Number(r.amountReported).toFixed(2)}</strong> · Cuenta: ${escapeHtml(r.accountMethod)} · Ref: <strong class="text-white select-all">${escapeHtml(r.reference || 'N/A')}</strong></div>
+      </div>
+      <button onclick="closeItemDetailModal()" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
     </div>
-    <img src="${r.receiptDataUrl}" class="w-full max-h-[70vh] object-contain rounded-xl bg-slate-950" />
+
+    <!-- Barra de Herramientas de Zoom, Descarga y Limpieza -->
+    <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+      <div class="flex items-center gap-1.5">
+        <button type="button" onclick="setReceiptZoom(-0.5)" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold border border-slate-700">- Zoom</button>
+        <button type="button" onclick="setReceiptZoom('reset')" id="admin-receipt-zoom-label" class="px-2.5 py-1.5 rounded-lg bg-slate-950 text-sky-300 text-xs font-extrabold border border-slate-800">100%</button>
+        <button type="button" onclick="setReceiptZoom(0.5)" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold border border-slate-700">+ Zoom</button>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <button type="button" onclick="downloadPaymentReceipt('${r.id}')" class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i>
+          <span>Descargar Capture</span>
+        </button>
+        <button type="button" onclick="deleteReceiptImageOnly('${r.id}', true)" class="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-bold transition flex items-center gap-1.5">
+          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          <span>Eliminar Capture de la Nube</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Contenedor con desplazamiento táctil y Zoom -->
+    <div class="w-full h-[65vh] overflow-auto rounded-2xl bg-slate-950 border border-slate-800 p-2 flex items-start justify-center">
+      <img id="admin-receipt-zoom-img" src="${r.receiptDataUrl}" alt="Comprobante" class="w-full h-auto object-contain rounded-xl transition-all duration-150 mx-auto" />
+    </div>
   `;
   document.getElementById('item-detail-modal').classList.remove('hidden');
   if (window.lucide) window.lucide.createIcons();
+}
+
+async function downloadPaymentReceipt(reportId) {
+  const r = STORE_STATE.paymentReports.find(x => x.id === reportId);
+  if (!r || !r.receiptDataUrl) {
+    showToast('Este reporte no tiene imagen adjunta', 'error');
+    return;
+  }
+  const safeClient = String(r.customerName || 'cliente').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const safeCode = String(r.jobCode || 'pago').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const fileName = `Comprobante_${safeCode}_${safeClient}.jpg`;
+
+  if (window.AndroidAdminBridge && typeof window.AndroidAdminBridge.saveImageToDownloads === 'function') {
+    window.AndroidAdminBridge.saveImageToDownloads(r.receiptDataUrl, fileName);
+    return;
+  }
+
+  try {
+    let href = r.receiptDataUrl;
+    if (!href.startsWith('data:')) {
+      const resp = await fetch(href);
+      const blob = await resp.blob();
+      href = URL.createObjectURL(blob);
+    }
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    if (!r.receiptDataUrl.startsWith('data:')) {
+      setTimeout(() => URL.revokeObjectURL(href), 4000);
+    }
+    showToast(`Descargando ${fileName}`, 'success');
+  } catch (e) {
+    window.open(r.receiptDataUrl, '_blank', 'noopener');
+  }
+}
+
+async function tryRemoveCloudStorageImage(imageUrl) {
+  if (!imageUrl || imageUrl.startsWith('data:')) return;
+  try {
+    const m = imageUrl.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/);
+    if (m && window.storeCloud && window.storeCloud.client) {
+      const bucket = m[1];
+      const filePath = decodeURIComponent(m[2]);
+      await window.storeCloud.client.storage.from(bucket).remove([filePath]);
+    }
+  } catch (e) {}
+}
+
+async function deleteReceiptImageOnly(reportId, closeModalAfter = false) {
+  const r = STORE_STATE.paymentReports.find(x => x.id === reportId);
+  if (!r || !r.receiptDataUrl) return;
+  await tryRemoveCloudStorageImage(r.receiptDataUrl);
+  r.receiptDataUrl = '';
+  saveToStorage(STORE_STORAGE_KEYS.PAYMENT_REPORTS, STORE_STATE.paymentReports);
+  if (closeModalAfter) closeItemDetailModal();
+  renderAdminPaymentReportsList();
+  showToast('Imagen del comprobante eliminada de la nube (espacio liberado)', 'success');
+}
+
+async function purgeConfirmedReceiptImages() {
+  const targets = (STORE_STATE.paymentReports || []).filter(r => r.status === 'Confirmado' && Boolean(r.receiptDataUrl));
+  if (!targets.length) {
+    showToast('No hay captures pendientes por limpiar en pagos confirmados');
+    return;
+  }
+  for (const r of targets) {
+    await tryRemoveCloudStorageImage(r.receiptDataUrl);
+    r.receiptDataUrl = '';
+  }
+  saveToStorage(STORE_STORAGE_KEYS.PAYMENT_REPORTS, STORE_STATE.paymentReports);
+  renderAdminPaymentReportsList();
+  showToast(`Se eliminaron ${targets.length} capture(s) de pagos confirmados en la nube`, 'success');
 }
 
 function confirmPaymentReport(reportId) {
@@ -3557,10 +3819,15 @@ function rejectPaymentReport(reportId) {
   showToast('Reporte de pago marcado como rechazado', 'error');
 }
 
-function deletePaymentReport(reportId) {
+async function deletePaymentReport(reportId) {
+  const r = STORE_STATE.paymentReports.find(x => x.id === reportId);
+  if (r && r.receiptDataUrl) {
+    await tryRemoveCloudStorageImage(r.receiptDataUrl);
+  }
   STORE_STATE.paymentReports = STORE_STATE.paymentReports.filter(x => x.id !== reportId);
   saveToStorage(STORE_STORAGE_KEYS.PAYMENT_REPORTS, STORE_STATE.paymentReports);
   renderAdminPaymentReportsList();
+  showToast('Reporte y comprobante eliminados de la nube');
 }
 
 // ============================================================================

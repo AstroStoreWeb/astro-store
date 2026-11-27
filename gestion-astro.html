@@ -158,9 +158,9 @@
                   </div>
 
                   <!-- Entrada 1: Enlace individual -->
-                  <div class="flex gap-2">
-                    <input id="item-image-url-input" type="url" placeholder="Pega el enlace de Google Drive o URL directa..." class="flex-1 min-w-[180px] bg-slate-900 text-white text-xs px-3.5 py-2.5 rounded-xl border border-slate-700" />
-                    <button type="button" onclick="handleAddImageUrl('item')" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-bold border border-slate-700 whitespace-nowrap">+ Agregar Enlace</button>
+                  <div class="flex flex-col sm:flex-row gap-2 min-w-0">
+                    <input id="item-image-url-input" type="url" placeholder="Pega el enlace de Google Drive o URL directa..." class="flex-1 min-w-0 w-full bg-slate-900 text-white text-xs px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                    <button type="button" onclick="handleAddImageUrl('item')" class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-bold border border-slate-700 whitespace-nowrap shrink-0">+ Agregar Enlace</button>
                   </div>
 
                   <!-- Entrada 2: Múltiples enlaces de Google Drive a la vez -->
@@ -249,14 +249,14 @@
                 <!-- FOTOS DEL PROYECTO / PORTAFOLIO -->
                 <div class="sm:col-span-2 lg:col-span-4 p-4 rounded-2xl bg-slate-950/90 border border-indigo-500/30 space-y-2.5">
                   <div class="text-xs font-bold text-indigo-300">Fotografías del Proyecto (puedes agregar varias)</div>
-                  <div class="flex flex-wrap items-center gap-2">
-                    <label class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer transition inline-flex items-center gap-1.5">
+                  <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 min-w-0">
+                    <label class="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer transition inline-flex items-center justify-center gap-1.5 shrink-0">
                       <i data-lucide="image-plus" class="w-4 h-4"></i>
                       <span>Subir Fotos</span>
                       <input type="file" accept="image/*" multiple onchange="handleImageFilesUpload(event, 'project')" class="hidden" />
                     </label>
-                    <input id="prj-image-url-input" type="url" placeholder="O pega el enlace (URL) de una imagen..." class="flex-1 min-w-[180px] bg-slate-900 text-white text-xs px-3 py-2 rounded-xl border border-slate-700" />
-                    <button type="button" onclick="handleAddImageUrl('project')" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-bold border border-slate-700">Agregar URL</button>
+                    <input id="prj-image-url-input" type="url" placeholder="O pega el enlace (URL) de una imagen..." class="flex-1 min-w-0 w-full bg-slate-900 text-white text-xs px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                    <button type="button" onclick="handleAddImageUrl('project')" class="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-bold border border-slate-700 shrink-0">Agregar URL</button>
                   </div>
                   <div id="prj-images-preview" class="flex flex-wrap gap-2 pt-1"></div>
                 </div>
@@ -399,17 +399,40 @@
               <div id="admin-receivables-list" class="space-y-3"></div>
             </div>
 
-            <!-- 0. Pagos y Abonos Reportados por Clientes -->
+            <!-- 0. Pagos, Abonos y Comprobantes Reportados por Clientes (Clasificados por Cliente + Zoom + Descarga + Limpieza de Nube) -->
             <div class="bento-card p-6 border border-amber-500/35 space-y-4">
-              <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                 <div>
-                  <h3 class="text-base font-extrabold text-white flex items-center gap-2">
-                    <span>Pagos y Abonos Reportados por Clientes</span>
+                  <h3 class="text-base font-extrabold text-white flex flex-wrap items-center gap-2">
+                    <span>Comprobantes y Pagos Reportados por Clientes</span>
                     <span id="admin-pending-payments-badge" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">0 pendientes</span>
+                    <span id="admin-receipts-cloud-badge" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-500/15 text-sky-300 border border-sky-500/30">0 captures en nube</span>
                   </h3>
-                  <p class="text-xs text-slate-400">Al confirmar el pago, se suma al trabajo activo y si alcanza el 100%, sus archivos protegidos se liberan automáticamente para descarga.</p>
+                  <p class="text-xs text-slate-400 mt-0.5">Clasificados por cliente. Puedes abrir cada capture a pantalla completa con zoom, descargarlo directo a tu teléfono/PC y eliminar la imagen para liberar tráfico y espacio en la nube.</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <button type="button" onclick="purgeConfirmedReceiptImages()" class="px-3 py-2 rounded-xl text-[11px] font-bold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition flex items-center gap-1.5">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    <span>Limpiar Captures Ya Confirmados</span>
+                  </button>
                 </div>
               </div>
+
+              <!-- Controles de Búsqueda, Agrupación por Cliente y Filtros -->
+              <div class="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-between gap-2 pt-1">
+                <input id="admin-receipts-search" type="text" oninput="handleAdminReceiptsSearch(this.value)" placeholder="Buscar por cliente, código o referencia..." class="flex-1 min-w-0 bg-slate-950 text-white text-xs px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <button id="rcp-group-btn" type="button" onclick="toggleAdminReceiptsGroupByClient()" class="px-3 py-2 rounded-xl text-[11px] font-bold bg-indigo-600 text-white transition">
+                    Agrupado por Cliente
+                  </button>
+                  <div class="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+                    <button id="rcp-filter-todos" type="button" onclick="setAdminReceiptsFilter('todos')" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-600 text-white">Todos</button>
+                    <button id="rcp-filter-con_capture" type="button" onclick="setAdminReceiptsFilter('con_capture')" class="px-2.5 py-1 rounded-lg text-[11px] font-medium text-slate-300">Con Capture</button>
+                    <button id="rcp-filter-pendientes" type="button" onclick="setAdminReceiptsFilter('pendientes')" class="px-2.5 py-1 rounded-lg text-[11px] font-medium text-slate-300">Pendientes</button>
+                  </div>
+                </div>
+              </div>
+
               <div id="admin-payment-reports-list" class="space-y-3"></div>
             </div>
 
