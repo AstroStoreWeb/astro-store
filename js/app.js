@@ -209,6 +209,16 @@ function initStore() {
   loadCartFromStorage();
   setupMobileKeyboardListeners();
 
+  // Desbloqueo automático de pedido si viene por enlace directo ?trabajo=TRB-109&pin=4829
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramJob = urlParams.get('trabajo');
+    const paramPin = urlParams.get('pin');
+    if (paramJob && paramPin && typeof registerMyJobKey === 'function') {
+      registerMyJobKey(paramJob, paramPin);
+    }
+  } catch (e) {}
+
   switchView(resolveViewFromURL(), false);
   syncBcvRates(false);
   checkCustomerPaymentStatus(false);
@@ -931,12 +941,80 @@ function clearCart() {
   if (STORE_STATE.publicTab === 'pasarela') renderPasarelaModule();
 }
 
-function calculateCouponDiscount(subtotal, coupon) {
+function getAllPrivateTagsInCatalog() {
+  const set = new Set(['Propio', 'Externo']);
+  (STORE_STATE.catalog || []).forEach(item => {
+    if (Array.isArray(item.privateTags)) {
+      item.privateTags.forEach(t => {
+        const clean = String(t || '').trim();
+        if (clean) set.add(clean);
+      });
+    }
+  });
+  return Array.from(set);
+}
+
+function doesCatalogItemMatchCoupon(catItem, coupon) {
+  if (!coupon || !coupon.scopeType || coupon.scopeType === 'all') return true;
+  if (!catItem) return false;
+  const values = Array.isArray(coupon.scopeValues) ? coupon.scopeValues : [];
+  if (!values.length) return true;
+
+  if (coupon.scopeType === 'items') {
+    return values.includes(catItem.id);
+  }
+  if (coupon.scopeType === 'categories') {
+    return values.includes(catItem.category);
+  }
+  if (coupon.scopeType === 'tags') {
+    const itemTags = Array.isArray(catItem.privateTags) ? catItem.privateTags.map(t => t.toLowerCase()) : [];
+    return values.some(v => itemTags.includes(String(v).toLowerCase()));
+  }
+  return true;
+}
+
+function getCouponAffectedCatalogItems(coupon) {
+  if (!coupon || !coupon.scopeType || coupon.scopeType === 'all') return [];
+  return (STORE_STATE.catalog || []).filter(item => doesCatalogItemMatchCoupon(item, coupon));
+}
+
+// Resumen 100% seguro para el cliente: NUNCA expone etiquetas privadas (Propio/Externo), solo los productos/servicios o áreas afectadas
+function formatCouponPublicScopeSummary(coupon) {
+  if (!coupon || !coupon.scopeType || coupon.scopeType === 'all') {
+    return 'Aplica a toda la tienda';
+  }
+  if (coupon.scopeType === 'categories') {
+    const cats = Array.isArray(coupon.scopeValues) ? coupon.scopeValues : [];
+    return cats.length ? `Aplica a áreas: ${cats.join(', ')}` : 'Aplica a toda la tienda';
+  }
+  const affected = getCouponAffectedCatalogItems(coupon);
+  if (!affected.length) return 'Aplica a productos seleccionados';
+  const names = affected.map(i => i.name);
+  if (names.length <= 4) return `Aplica a: ${names.join(', ')}`;
+  return `Aplica a: ${names.slice(0, 4).join(', ')} (+${names.length - 4} más)`;
+}
+
+function calculateCouponDiscount(itemsOrSubtotal, coupon) {
   if (!coupon) return 0;
   const val = Number(coupon.discountValue || 0);
   if (val <= 0) return 0;
-  if (coupon.discountType === 'fixed') return Math.min(subtotal, val);
-  return Math.min(subtotal, (subtotal * val) / 100);
+
+  let eligibleSubtotal = 0;
+  if (Array.isArray(itemsOrSubtotal)) {
+    eligibleSubtotal = itemsOrSubtotal.reduce((sum, cartItem) => {
+      const catItem = (STORE_STATE.catalog || []).find(c => c.id === cartItem.id) || cartItem;
+      if (doesCatalogItemMatchCoupon(catItem, coupon)) {
+        return sum + (Number(cartItem.price || 0) * Number(cartItem.qty || 1));
+      }
+      return sum;
+    }, 0);
+  } else {
+    eligibleSubtotal = Number(itemsOrSubtotal || 0);
+  }
+
+  if (eligibleSubtotal <= 0) return 0;
+  if (coupon.discountType === 'fixed') return Math.min(eligibleSubtotal, val);
+  return Math.min(eligibleSubtotal, (eligibleSubtotal * val) / 100);
 }
 
 function validateAndApplyCouponCode(rawCode) {
@@ -949,10 +1027,23 @@ function validateAndApplyCouponCode(rawCode) {
     return null;
   }
 
-  if (found.expiresAt) {
+  const expDate = found.expires || found.expiresAt;
+  if (expDate) {
     const today = new Date().toISOString().slice(0, 10);
-    if (today > found.expiresAt) {
-      showToast(`El código "${code}" expiró el ${found.expiresAt}`, 'error');
+    if (today > expDate) {
+      showToast(`El código "${code}" expiró el ${expDate}`, 'error');
+      return null;
+    }
+  }
+
+  const activeItems = STORE_STATE.checkoutDirectItem ? [STORE_STATE.checkoutDirectItem] : STORE_STATE.cart;
+  if (activeItems.length && found.scopeType && found.scopeType !== 'all') {
+    const hasMatch = activeItems.some(ci => {
+      const catItem = (STORE_STATE.catalog || []).find(c => c.id === ci.id) || ci;
+      return doesCatalogItemMatchCoupon(catItem, found);
+    });
+    if (!hasMatch) {
+      showToast(`El código "${found.code}" no aplica a los artículos actuales (${formatCouponPublicScopeSummary(found)})`, 'error');
       return null;
     }
   }
@@ -997,7 +1088,7 @@ function renderCart() {
   const totalItems = STORE_STATE.cart.reduce((s, i) => s + i.qty, 0);
   const subtotalPrice = STORE_STATE.cart.reduce((s, i) => s + (i.price * i.qty), 0);
   const coupon = STORE_STATE.appliedCoupon;
-  const discount = calculateCouponDiscount(subtotalPrice, coupon);
+  const discount = calculateCouponDiscount(STORE_STATE.cart, coupon);
   const finalPrice = Math.max(0, subtotalPrice - discount);
 
   if (badgeEl) {
@@ -1019,6 +1110,7 @@ function renderCart() {
           <div>
             <div class="font-bold text-white">${escapeHtml(coupon.code)} · ${coupon.kind === 'especial' ? 'Código Especial' : 'Descuento'}</div>
             <div class="text-[11px] text-slate-300 mt-0.5">${escapeHtml(coupon.specifications)}</div>
+            ${coupon.scopeType && coupon.scopeType !== 'all' ? `<div class="text-[10px] text-emerald-300 font-semibold mt-1">${escapeHtml(formatCouponPublicScopeSummary(coupon))}</div>` : ''}
           </div>
           <button type="button" onclick="clearAppliedCoupon()" class="text-rose-400 font-bold px-1">&times;</button>
         </div>
@@ -1243,7 +1335,7 @@ function renderPasarelaModule() {
 
   const subtotal = items.reduce((s, i) => s + (i.price * i.qty), 0);
   const coupon = STORE_STATE.appliedCoupon;
-  const discount = calculateCouponDiscount(subtotal, coupon);
+  const discount = calculateCouponDiscount(items, coupon);
   const total = Math.max(0, subtotal - discount);
   const compatiblePlans = getCompatiblePlansForCheckout(items);
   const accResolution = getCompatibleAccountsForCheckout(items);
@@ -1309,6 +1401,7 @@ function renderPasarelaModule() {
               <div>
                 <div class="font-bold text-white">${escapeHtml(coupon.code)} · ${coupon.kind === 'especial' ? 'Código Especial' : 'Descuento'}${discount > 0 ? ` (-${escapeHtml(sym)}${discount.toFixed(2)})` : ''}</div>
                 <div class="text-[11px] text-sky-200 mt-0.5">${escapeHtml(coupon.specifications)}</div>
+                ${coupon.scopeType && coupon.scopeType !== 'all' ? `<div class="text-[10px] text-emerald-300 font-semibold mt-1">${escapeHtml(formatCouponPublicScopeSummary(coupon))}</div>` : ''}
               </div>
               <button type="button" onclick="clearAppliedCoupon()" class="text-rose-400 font-bold px-1">&times;</button>
             </div>
@@ -1472,7 +1565,7 @@ async function confirmCheckoutToWhatsApp(e) {
   const items = getCheckoutItems();
   const subtotal = items.reduce((s, i) => s + (i.price * i.qty), 0);
   const coupon = STORE_STATE.appliedCoupon;
-  const discount = calculateCouponDiscount(subtotal, coupon);
+  const discount = calculateCouponDiscount(items, coupon);
   const total = Math.max(0, subtotal - discount);
 
   const compatiblePlans = getCompatiblePlansForCheckout(items);
@@ -1507,12 +1600,14 @@ async function confirmCheckoutToWhatsApp(e) {
 
   const nextNum = 101 + STORE_STATE.activeJobs.length + Math.floor(Math.random() * 10);
   const jobCode = `TRB-${nextNum}`;
+  const accessPin = String(Math.floor(1000 + Math.random() * 9000));
   const serviceTitle = items.map(i => `${i.qty}x ${i.name}`).join(', ');
   const newJobId = 'job-' + Date.now();
 
-  STORE_STATE.activeJobs.unshift({
+  const newJob = {
     id: newJobId,
     code: jobCode,
+    accessPin,
     clientName: customerName,
     serviceName: serviceTitle,
     contractDate: todayStr,
@@ -1524,8 +1619,14 @@ async function confirmCheckoutToWhatsApp(e) {
     paidAmount: 0,
     notes: 'Pedido registrado desde Pasarela. Esperando confirmación de pago por el administrador.',
     deliverables: []
-  });
+  };
+
+  STORE_STATE.activeJobs.unshift(newJob);
   saveToStorage(STORE_STORAGE_KEYS.ACTIVE_JOBS, STORE_STATE.activeJobs);
+  if (typeof registerMyJobKey === 'function') registerMyJobKey(jobCode, accessPin);
+  if (window.storeCloud && window.storeCloud.isConnected) {
+    window.storeCloud.registerPrivateJob(newJob);
+  }
 
   const newReportId = 'pay-' + Date.now();
   STORE_STATE.paymentReports.unshift({
@@ -1550,6 +1651,7 @@ async function confirmCheckoutToWhatsApp(e) {
     reportId: newReportId,
     jobId: newJobId,
     jobCode,
+    accessPin,
     notifiedConfirmed: false
   });
 
@@ -1587,7 +1689,7 @@ async function confirmCheckoutToWhatsApp(e) {
     (acc ? `\n*Cuenta destino:* ${acc.method} (${acc.bank})` : '') +
     (reference ? `\n*Referencia:* ${reference}` : '') +
     (receipt ? `\n*Comprobante:* Adjunto captura (${receipt.fileName})` : '') +
-    `\n\nMi código de seguimiento es *${jobCode}*. Quedo atento(a) para validar el pago.`;
+    `\n\nMi código de seguimiento es *${jobCode}* (PIN privado: *${accessPin}*). Quedo atento(a) para validar el pago.`;
 
   window.open(buildWhatsAppUrl(msg, STORE_STATE.config), '_blank', 'noopener');
   renderPasarelaModule();
@@ -1898,6 +2000,7 @@ function renderAdminCatalogList() {
               ? `<span class="text-emerald-400 font-extrabold text-sm">${escapeHtml(STORE_STATE.config.currencySymbol)}${Number(item.price).toFixed(2)}</span>`
               : `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">A consultar / Cotizar</span>`}
             ${modeLabel ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-200 border border-purple-500/30">${escapeHtml(modeLabel)}</span>` : ''}
+            ${Array.isArray(item.privateTags) && item.privateTags.length ? item.privateTags.map(t => `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">🔒 ${escapeHtml(t)}</span>`).join('') : ''}
           </div>
           <p class="text-xs text-slate-400 mt-0.5">${escapeHtml(getSalesCatalogName(item.salesCatalogId))} · ${escapeHtml(item.category)} · ${escapeHtml(item.description)}</p>
           ${item.details ? `<p class="text-[11px] text-slate-300 bg-slate-950/80 border border-slate-800 rounded-xl p-2 mt-1.5 whitespace-pre-line">${escapeHtml(item.details)}</p>` : ''}
@@ -1944,6 +2047,13 @@ function handleSaveCatalogItem(e) {
     pendingImgInput.value = '';
   }
 
+  const checkedPrivateTags = Array.from(document.querySelectorAll('input[name="item-private-tag"]:checked')).map(cb => cb.value.trim());
+  const customPrivateTags = (document.getElementById('item-private-tags-custom')?.value || '')
+    .split(',')
+    .map(t => t.trim())
+    .filter(Boolean);
+  const privateTags = Array.from(new Set([...checkedPrivateTags, ...customPrivateTags]));
+
   const data = {
     name: document.getElementById('item-name').value.trim(),
     salesCatalogId: document.getElementById('item-sales-catalog').value,
@@ -1960,7 +2070,8 @@ function handleSaveCatalogItem(e) {
     images: [...STORE_STATE.draftItemImages],
     allowedPlanIds: checkedPlans,
     defaultAccountId,
-    allowedAccountIds: checkedAccounts
+    allowedAccountIds: checkedAccounts,
+    privateTags
   };
 
   if (STORE_STATE.editingItemId) {
@@ -2010,6 +2121,17 @@ function editCatalogItem(id) {
   renderDraftImagesPreview('item');
   renderAdminItemPlansCheckboxes(item.allowedPlanIds || []);
   renderAdminItemAccountsSelector(item.defaultAccountId || '', item.allowedAccountIds || []);
+
+  const pTags = Array.isArray(item.privateTags) ? item.privateTags : [];
+  document.querySelectorAll('input[name="item-private-tag"]').forEach(cb => {
+    cb.checked = pTags.some(t => t.toLowerCase() === cb.value.toLowerCase());
+  });
+  const customTagEl = document.getElementById('item-private-tags-custom');
+  if (customTagEl) {
+    const extras = pTags.filter(t => !['propio', 'externo'].includes(t.toLowerCase()));
+    customTagEl.value = extras.join(', ');
+  }
+
   scrollToCardForm('admin-item-form-card');
 }
 
@@ -2032,6 +2154,9 @@ function cancelEditCatalogItem() {
   renderDraftImagesPreview('item');
   renderAdminItemPlansCheckboxes();
   renderAdminItemAccountsSelector('', []);
+  document.querySelectorAll('input[name="item-private-tag"]').forEach(cb => { cb.checked = false; });
+  const customTagEl = document.getElementById('item-private-tags-custom');
+  if (customTagEl) customTagEl.value = '';
 }
 
 function deleteCatalogItem(id) {
@@ -2912,6 +3037,59 @@ function setJobStatusFilter(status) {
   renderTrabajosModule();
 }
 
+function isJobAuthorizedForDevice(job) {
+  if (!job || !job.code) return false;
+  const myKeys = typeof loadMyJobKeys === 'function' ? loadMyJobKeys() : [];
+  const jCode = String(job.code).trim().toUpperCase();
+  const jPin = String(job.accessPin || '').trim();
+  return myKeys.some(k => {
+    const kCode = String(k.code || '').trim().toUpperCase();
+    const kPin = String(k.pin || '').trim();
+    if (kCode !== jCode) return false;
+    // Si el trabajo aún no tiene PIN (trabajos viejos antes de la actualización), basta con el código guardado
+    return !jPin || kPin === jPin;
+  });
+}
+
+async function handleLookupPrivateJob(e) {
+  e.preventDefault();
+  const codeEl = document.getElementById('job-lookup-code');
+  const pinEl = document.getElementById('job-lookup-pin');
+  const code = (codeEl ? codeEl.value : '').trim().toUpperCase();
+  const pin = (pinEl ? pinEl.value : '').trim();
+  if (!code || !pin) return;
+
+  let found = null;
+  if (window.storeCloud && window.storeCloud.isConnected) {
+    const res = await window.storeCloud.pullAuthorizedJobs([{ code, pin }]);
+    if (res.supported && res.jobs.length) {
+      found = res.jobs[0];
+    }
+  }
+
+  if (!found) {
+    found = (STORE_STATE.activeJobs || []).find(j =>
+      String(j.code || '').trim().toUpperCase() === code &&
+      (!j.accessPin || String(j.accessPin).trim() === pin)
+    );
+  }
+
+  if (!found) {
+    showToast(`No se encontró ningún pedido con el código "${code}" y ese PIN privado`, 'error');
+    return;
+  }
+
+  if (typeof registerMyJobKey === 'function') registerMyJobKey(code, pin);
+  if (!STORE_STATE.activeJobs.some(j => j.id === found.id)) {
+    STORE_STATE.activeJobs.unshift(found);
+  }
+  if (codeEl) codeEl.value = '';
+  if (pinEl) pinEl.value = '';
+  renderTrabajosModule();
+  if (window.lucide) window.lucide.createIcons();
+  showToast(`Pedido ${code} desbloqueado en este dispositivo`, 'success');
+}
+
 function renderTrabajosModule() {
   const grid = document.getElementById('active-jobs-grid');
   if (!grid) return;
@@ -2919,7 +3097,9 @@ function renderTrabajosModule() {
   const sym = STORE_STATE.config.currencySymbol;
   const usdRate = STORE_STATE.bcvRates?.usd || 0;
 
-  const filtered = STORE_STATE.activeJobs.filter(j => {
+  const authorizedJobs = (STORE_STATE.activeJobs || []).filter(j => isJobAuthorizedForDevice(j));
+
+  const filtered = authorizedJobs.filter(j => {
     const matchesStatus = STORE_STATE.jobStatusFilter === 'todos' || j.status === STORE_STATE.jobStatusFilter;
     const q = STORE_STATE.jobSearchQuery;
     const sName = (j.serviceName || j.serviceTitle || j.title || '').toLowerCase();
@@ -2931,7 +3111,7 @@ function renderTrabajosModule() {
   });
 
   if (!filtered.length) {
-    grid.innerHTML = `<div class="col-span-full bento-card p-8 text-center text-slate-400 text-sm">No hay trabajos o servicios activos con ese filtro.</div>`;
+    grid.innerHTML = `<div class="col-span-full bento-card p-8 text-center text-slate-400 text-sm">${authorizedJobs.length ? 'No hay trabajos propios con ese filtro.' : 'No tienes pedidos o servicios desbloqueados en este dispositivo. Si realizaste una compra desde otro equipo, ingresa tu Código y PIN arriba.'}</div>`;
     return;
   }
 
@@ -3051,6 +3231,18 @@ function renderTrabajosModule() {
   if (window.lucide) window.lucide.createIcons();
 }
 
+function copyJobTrackingLink(code, pin) {
+  const baseUrl = window.location.origin.startsWith('http')
+    ? `${window.location.origin}/index.html`
+    : 'https://creative-store.mm913346.workers.dev';
+  const url = `${baseUrl}?trabajo=${encodeURIComponent(code)}&pin=${encodeURIComponent(pin || '')}`;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => showToast(`Enlace privado copiado (${code} · PIN: ${pin})`));
+  } else {
+    showToast(`Código: ${code} | PIN: ${pin}`);
+  }
+}
+
 function renderAdminJobsList() {
   const el = document.getElementById('admin-jobs-list');
   if (!el) return;
@@ -3061,17 +3253,22 @@ function renderAdminJobsList() {
   }
   el.innerHTML = STORE_STATE.activeJobs.map(j => {
     const hasPrice = !j.priceOnRequest && j.totalAmount !== null && j.totalAmount !== undefined && j.totalAmount !== '' && Number(j.totalAmount) > 0;
+    const pinBadge = j.accessPin
+      ? `<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">PIN: ${escapeHtml(j.accessPin)}</span>`
+      : '';
     return `
       <div class="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div class="min-w-0">
           <div class="flex items-center gap-2 flex-wrap">
             <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300">${escapeHtml(j.code)}</span>
+            ${pinBadge}
             <span class="font-bold text-white text-sm">${escapeHtml(j.serviceName)}</span>
             <span class="text-xs text-emerald-400 font-bold">${j.progress}% · ${escapeHtml(j.status)}</span>
           </div>
           <p class="text-xs text-slate-400 mt-0.5">Cliente: ${escapeHtml(j.clientName)} | Contrato: ${formatJobDate(j.contractDate)} | Vence: ${formatJobDate(j.dueDate)} | ${hasPrice ? `Pagado: ${escapeHtml(sym)}${j.paidAmount}/${j.totalAmount}` : 'Por cotizar / Sin monto fijo'}</p>
         </div>
-        <div class="flex gap-2 shrink-0">
+        <div class="flex gap-2 shrink-0 flex-wrap">
+          ${j.accessPin ? `<button onclick="copyJobTrackingLink('${escapeHtml(j.code)}', '${escapeHtml(j.accessPin)}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">Copiar Link</button>` : ''}
           <button onclick="editActiveJob('${j.id}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-sky-300">Editar</button>
           <button onclick="deleteActiveJob('${j.id}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-500/15 text-rose-300">Eliminar</button>
         </div>
@@ -3084,9 +3281,11 @@ function handleSaveActiveJob(e) {
   e.preventDefault();
   const rawTotal = document.getElementById('job-total').value.trim();
   const rawPaid = document.getElementById('job-paid').value.trim();
+  const rawPin = document.getElementById('job-access-pin')?.value.trim() || '';
   const priceOnRequest = rawTotal === '';
   const data = {
     code: document.getElementById('job-code').value.trim(),
+    accessPin: rawPin || String(Math.floor(1000 + Math.random() * 9000)),
     clientName: document.getElementById('job-client').value.trim(),
     serviceName: document.getElementById('job-service').value.trim(),
     contractDate: document.getElementById('job-contract-date').value,
@@ -3120,6 +3319,7 @@ function editActiveJob(id) {
   document.getElementById('admin-job-form-title').textContent = 'Editar Trabajo / Servicio Activo';
   document.getElementById('admin-job-cancel-edit').classList.remove('hidden');
   document.getElementById('job-code').value = j.code;
+  if (document.getElementById('job-access-pin')) document.getElementById('job-access-pin').value = j.accessPin || '';
   document.getElementById('job-client').value = j.clientName;
   document.getElementById('job-service').value = j.serviceName;
   document.getElementById('job-contract-date').value = j.contractDate;
@@ -3138,6 +3338,7 @@ function editActiveJob(id) {
 function cancelEditActiveJob() {
   STORE_STATE.editingJobId = null;
   STORE_STATE.draftJobDeliverables = [];
+  if (document.getElementById('job-access-pin')) document.getElementById('job-access-pin').value = '';
   document.getElementById('admin-job-form-title').textContent = 'Registrar / Actualizar Trabajo o Servicio Activo';
   document.getElementById('admin-job-cancel-edit').classList.add('hidden');
   ['job-code', 'job-client', 'job-service', 'job-contract-date', 'job-due-date', 'job-payment-mode', 'job-total', 'job-paid', 'job-notes'].forEach(id => {
@@ -3938,6 +4139,42 @@ function toggleCouponKindFields() {
   if (durWrap) durWrap.classList.toggle('hidden', kind === 'descuento');
 }
 
+function renderCouponScopeOptions() {
+  const typeEl = document.getElementById('cpn-scope-type');
+  const wrap = document.getElementById('cpn-scope-selector-wrap');
+  const listEl = document.getElementById('cpn-scope-options-list');
+  if (!typeEl || !wrap || !listEl) return;
+
+  const scopeType = typeEl.value || 'all';
+  if (scopeType === 'all') {
+    wrap.classList.add('hidden');
+    listEl.innerHTML = '';
+    return;
+  }
+
+  wrap.classList.remove('hidden');
+  let options = [];
+  if (scopeType === 'items') {
+    options = (STORE_STATE.catalog || []).map(i => ({ value: i.id, label: `${i.name} (${i.category})` }));
+  } else if (scopeType === 'categories') {
+    options = (STORE_STATE.categories || []).map(c => ({ value: c, label: c }));
+  } else if (scopeType === 'tags') {
+    options = getAllPrivateTagsInCatalog().map(t => ({ value: t, label: `🔒 ${t}` }));
+  }
+
+  if (!options.length) {
+    listEl.innerHTML = `<span class="text-xs text-slate-400">No hay elementos registrados para esta opción todavía.</span>`;
+    return;
+  }
+
+  listEl.innerHTML = options.map(opt => `
+    <label class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-200 cursor-pointer select-none hover:border-purple-400 transition">
+      <input type="checkbox" name="cpn-scope-val" value="${escapeHtml(opt.value)}" class="accent-purple-500 w-3.5 h-3.5 rounded" />
+      <span>${escapeHtml(opt.label)}</span>
+    </label>
+  `).join('');
+}
+
 function renderAdminCouponsList() {
   const el = document.getElementById('admin-coupons-list');
   if (!el) return;
@@ -3999,6 +4236,13 @@ function renderAdminCouponsList() {
         </div>
 
         <p class="text-slate-300 text-xs leading-relaxed"><strong class="text-white">Especificaciones:</strong> ${escapeHtml(c.specifications || 'Sin detalle')}</p>
+        ${c.scopeType && c.scopeType !== 'all' ? `
+          <div class="text-[11px] text-purple-300 bg-purple-500/10 border border-purple-500/25 rounded-xl px-3 py-1.5">
+            <strong>Alcance (${c.scopeType === 'tags' ? '🔒 Etiquetas privadas' : (c.scopeType === 'categories' ? 'Áreas' : 'Productos')}):</strong>
+            ${c.scopeType === 'tags' ? escapeHtml((c.scopeValues || []).join(', ') + ' → ') : ''}
+            <span class="text-emerald-300">${escapeHtml(formatCouponPublicScopeSummary(c))}</span>
+          </div>
+        ` : ''}
 
         ${redemptions.length ? `
           <div class="pt-2 border-t border-slate-800/80">
@@ -4033,7 +4277,16 @@ function handleSaveCoupon(e) {
   const discountValue = parseFloat(document.getElementById('cpn-discount-val') ? document.getElementById('cpn-discount-val').value : 0) || 0;
   const expires = document.getElementById('cpn-expires') ? document.getElementById('cpn-expires').value : '';
   const specifications = document.getElementById('cpn-specs').value.trim();
+  const scopeType = document.getElementById('cpn-scope-type') ? document.getElementById('cpn-scope-type').value : 'all';
+  const scopeValues = scopeType === 'all'
+    ? []
+    : Array.from(document.querySelectorAll('input[name="cpn-scope-val"]:checked')).map(cb => cb.value);
   if (!code) return;
+
+  if (scopeType !== 'all' && !scopeValues.length) {
+    showToast('Selecciona al menos un producto, área o etiqueta para el alcance del cupón', 'error');
+    return;
+  }
 
   STORE_STATE.coupons.unshift({
     id: 'cpn-' + Date.now(),
@@ -4046,6 +4299,8 @@ function handleSaveCoupon(e) {
     discountValue,
     expires: expires || null,
     specifications,
+    scopeType,
+    scopeValues,
     active: true,
     redemptions: []
   });
@@ -4055,6 +4310,10 @@ function handleSaveCoupon(e) {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  if (document.getElementById('cpn-scope-type')) {
+    document.getElementById('cpn-scope-type').value = 'all';
+    renderCouponScopeOptions();
+  }
   renderAdminCouponsList();
   renderAdminNotificationsCenter();
   showToast(`Código ${code} creado exitosamente`, 'success');
@@ -4167,9 +4426,11 @@ async function handleRedeemPublicSpecialCode(e) {
     const endDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
 
     const servText = `${c.kind === 'asesoria' ? 'Asesoría Gratuita' : 'Trabajo Bonificado'}: ${c.specifications}`;
+    const accessPin = String(Math.floor(1000 + Math.random() * 9000));
     linkedJob = {
       id: 'job-' + Date.now(),
       code: jobCode,
+      accessPin,
       clientName,
       clientPhone,
       serviceName: servText,
@@ -4193,6 +4454,10 @@ async function handleRedeemPublicSpecialCode(e) {
 
     STORE_STATE.activeJobs.unshift(linkedJob);
     saveToStorage(STORE_STORAGE_KEYS.ACTIVE_JOBS, STORE_STATE.activeJobs);
+    if (typeof registerMyJobKey === 'function') registerMyJobKey(jobCode, accessPin);
+    if (window.storeCloud && window.storeCloud.isConnected) {
+      window.storeCloud.registerPrivateJob(linkedJob);
+    }
     redemption.jobCode = jobCode;
   }
 
@@ -4214,8 +4479,9 @@ async function handleRedeemPublicSpecialCode(e) {
       </div>
       <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5 text-xs">
         <div><strong class="text-white">Beneficio:</strong> <span class="text-indigo-300 font-bold">${escapeHtml(c.specifications)}</span></div>
+        ${c.scopeType && c.scopeType !== 'all' ? `<div><strong class="text-white">Productos / Áreas afectadas:</strong> <span class="text-emerald-300 font-semibold">${escapeHtml(formatCouponPublicScopeSummary(c))}</span></div>` : ''}
         ${linkedJob ? `
-          <div><strong class="text-white">Código de Trabajo / Servicio:</strong> <span class="text-sky-300 font-mono font-bold">${linkedJob.code}</span></div>
+          <div><strong class="text-white">Código de Trabajo / Servicio:</strong> <span class="text-sky-300 font-mono font-bold">${linkedJob.code}</span> · <strong class="text-white">PIN privado:</strong> <span class="text-amber-300 font-mono font-bold">${linkedJob.accessPin}</span></div>
           <div><strong class="text-white">Duración Asignada:</strong> <span class="text-amber-300 font-bold">${linkedJob.durationDays} días</span> (Inicia: ${linkedJob.startDate} · Culmina: ${linkedJob.endDate})</div>
         ` : ''}
         <div><strong class="text-white">Titular:</strong> <span class="text-slate-200">${escapeHtml(clientName)} (${escapeHtml(clientPhone)})</span></div>
@@ -4792,7 +5058,37 @@ async function syncAllFromSupabase(showFeedback = false, options = {}) {
   applyKey(STORE_STORAGE_KEYS.SALES_CATALOGS, v => { if (Array.isArray(v)) STORE_STATE.salesCatalogs = v; });
   applyKey(STORE_STORAGE_KEYS.CATEGORIES, v => { if (Array.isArray(v)) STORE_STATE.categories = v; });
   applyKey(STORE_STORAGE_KEYS.PROJECTS, v => { if (Array.isArray(v)) STORE_STATE.projects = v; });
-  applyKey(STORE_STORAGE_KEYS.ACTIVE_JOBS, v => { if (Array.isArray(v)) STORE_STATE.activeJobs = v; });
+
+  // Capa 2 de seguridad para Trabajos Activos: Admin lee todo por RPC, Público lee solo sus códigos+PIN
+  const isAdminCtx = STORE_STATE.isAdminAuthenticated || document.body?.dataset?.page === 'admin';
+  let jobsHandledByRpc = false;
+  if (isAdminCtx && typeof window.storeCloud.adminPullAllJobs === 'function') {
+    const res = await window.storeCloud.adminPullAllJobs();
+    if (res.supported) {
+      jobsHandledByRpc = true;
+      if (res.jobs.length > 0 || !Array.isArray(map[STORE_STORAGE_KEYS.ACTIVE_JOBS]) || map[STORE_STORAGE_KEYS.ACTIVE_JOBS].length === 0) {
+        _baseSaveToStorage(STORE_STORAGE_KEYS.ACTIVE_JOBS, res.jobs);
+        STORE_STATE.activeJobs = res.jobs;
+      } else {
+        // Primera migración automática si había trabajos viejos en store_collections
+        STORE_STATE.activeJobs = map[STORE_STORAGE_KEYS.ACTIVE_JOBS];
+        _baseSaveToStorage(STORE_STORAGE_KEYS.ACTIVE_JOBS, STORE_STATE.activeJobs);
+        window.storeCloud.adminSyncAllJobs(STORE_STATE.activeJobs);
+      }
+    }
+  } else if (!isAdminCtx && typeof window.storeCloud.pullAuthorizedJobs === 'function') {
+    const myKeys = typeof loadMyJobKeys === 'function' ? loadMyJobKeys() : [];
+    const res = await window.storeCloud.pullAuthorizedJobs(myKeys);
+    if (res.supported) {
+      jobsHandledByRpc = true;
+      _baseSaveToStorage(STORE_STORAGE_KEYS.ACTIVE_JOBS, res.jobs);
+      STORE_STATE.activeJobs = res.jobs;
+    }
+  }
+  if (!jobsHandledByRpc) {
+    applyKey(STORE_STORAGE_KEYS.ACTIVE_JOBS, v => { if (Array.isArray(v)) STORE_STATE.activeJobs = v; });
+  }
+
   applyKey(STORE_STORAGE_KEYS.PAYMENT_REPORTS, v => { if (Array.isArray(v)) STORE_STATE.paymentReports = v; });
   applyKey(STORE_STORAGE_KEYS.PAYMENT_ACCOUNTS, v => { if (Array.isArray(v)) STORE_STATE.paymentAccounts = loadPaymentAccounts(); });
   applyKey(STORE_STORAGE_KEYS.PAYMENT_PLANS, v => { if (Array.isArray(v)) STORE_STATE.paymentPlans = v; });

@@ -287,6 +287,23 @@
             </div>
           </div>
 
+          <div class="bento-card p-4 sm:p-5 border border-sky-500/30 space-y-3">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <div class="text-xs font-bold text-sky-300 flex items-center gap-1.5">
+                  <i data-lucide="shield-check" class="w-4 h-4"></i>
+                  <span>Consulta Privada de Pedidos y Servicios</span>
+                </div>
+                <p class="text-[11px] text-slate-400">Tus pedidos realizados desde este dispositivo aparecen automáticamente. Si estás desde otro equipo, ingresa tu Código y PIN privado.</p>
+              </div>
+            </div>
+            <form onsubmit="handleLookupPrivateJob(event)" class="flex flex-col sm:flex-row gap-2">
+              <input id="job-lookup-code" type="text" required placeholder="Código (ej. TRB-109)" class="flex-1 bg-slate-950 text-white text-xs font-mono uppercase px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-sky-500" />
+              <input id="job-lookup-pin" type="text" required placeholder="PIN privado (4 dígitos)" class="sm:w-44 bg-slate-950 text-white text-xs font-mono px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-sky-500" />
+              <button type="submit" class="px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition whitespace-nowrap">Desbloquear Pedido</button>
+            </form>
+          </div>
+
           <div id="active-jobs-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
         </section>
 

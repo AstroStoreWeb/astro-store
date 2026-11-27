@@ -206,6 +206,30 @@
                   </div>
                 </div>
 
+                <!-- ETIQUETAS PRIVADAS (SOLO VISIBLES PARA EL ADMINISTRADOR) -->
+                <div class="sm:col-span-2 lg:col-span-4 p-4 rounded-2xl bg-slate-950/90 border border-purple-500/35 space-y-2.5">
+                  <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <div>
+                      <div class="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                        <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+                        <span>Etiquetas Privadas (Solo visible en Panel Admin)</span>
+                      </div>
+                      <p class="text-[11px] text-slate-400">Clasifica este ítem (ej. Propio, Externo) para segmentar cupones. El cliente nunca verá estas etiquetas en la web.</p>
+                    </div>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-3">
+                    <label class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-200 cursor-pointer select-none">
+                      <input type="checkbox" name="item-private-tag" value="Propio" class="accent-purple-500 w-3.5 h-3.5 rounded" />
+                      <span>Propio</span>
+                    </label>
+                    <label class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-200 cursor-pointer select-none">
+                      <input type="checkbox" name="item-private-tag" value="Externo" class="accent-amber-500 w-3.5 h-3.5 rounded" />
+                      <span>Externo</span>
+                    </label>
+                    <input id="item-private-tags-custom" type="text" placeholder="Otras etiquetas privadas separadas por coma (opcional)" class="flex-1 min-w-[220px] bg-slate-900 text-white text-xs px-3.5 py-2 rounded-xl border border-slate-700 focus:outline-none focus:border-purple-400" />
+                  </div>
+                </div>
+
                 <button type="submit" class="sm:col-span-2 lg:col-span-1 py-2.5 px-5 rounded-xl font-bold text-white bg-astro-gradient">Guardar en Catálogo</button>
               </form>
             </div>
@@ -307,6 +331,7 @@
                 <input id="job-payment-mode" type="text" placeholder="Modalidad (ej. 50%/50%, Por lote, Suscripción)" class="sm:col-span-2 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
                 <input id="job-total" type="number" step="0.01" min="0" placeholder="Monto total ($) — opcional (vacío = por cotizar)" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
                 <input id="job-paid" type="number" step="0.01" min="0" placeholder="Abonado / Pagado ($) — opcional" class="bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                <input id="job-access-pin" type="text" maxlength="8" placeholder="PIN privado cliente (ej. 4829 — auto si vacío)" class="sm:col-span-2 bg-slate-950 text-amber-300 font-mono text-sm px-3.5 py-2.5 rounded-xl border border-amber-500/35" />
                 <textarea id="job-notes" rows="2" placeholder="Notas del avance para el cliente..." class="sm:col-span-2 lg:col-span-4 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700"></textarea>
 
                 <!-- ENTREGABLES / AVANCES DEL TRABAJO (IMÁGENES, PDF O NUBES EXTERNAS) -->
@@ -574,6 +599,26 @@
                 </div>
 
                 <input id="cpn-specs" type="text" required placeholder="Especificaciones: ¿Qué incluye este beneficio o asesoría? *" class="sm:col-span-2 lg:col-span-3 bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
+
+                <!-- ALCANCE DEL CUPÓN / CÓDIGO (PRODUCTOS, ÁREAS O ETIQUETAS PRIVADAS) -->
+                <div class="sm:col-span-2 lg:col-span-4 p-4 rounded-2xl bg-slate-950/90 border border-purple-500/30 space-y-3">
+                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div class="text-xs font-bold text-purple-300">Alcance del Cupón / Código (¿A qué productos o áreas aplica?)</div>
+                      <p class="text-[11px] text-slate-400">Puedes restringirlo por productos específicos, categorías/áreas o por tus etiquetas privadas (Propio/Externo). El cliente solo verá los productos afectados, nunca tus etiquetas internas.</p>
+                    </div>
+                    <select id="cpn-scope-type" onchange="renderCouponScopeOptions()" class="bg-slate-900 text-white text-xs font-semibold px-3 py-2 rounded-xl border border-slate-700 shrink-0">
+                      <option value="all">Toda la tienda (General)</option>
+                      <option value="items">Productos / Servicios específicos</option>
+                      <option value="categories">Áreas / Categorías específicas</option>
+                      <option value="tags">Por Etiquetas Privadas (Propio / Externo...)</option>
+                    </select>
+                  </div>
+                  <div id="cpn-scope-selector-wrap" class="hidden pt-1 border-t border-slate-800/80">
+                    <div id="cpn-scope-options-list" class="flex flex-wrap gap-2 pt-2"></div>
+                  </div>
+                </div>
+
                 <button type="submit" class="py-2.5 px-5 rounded-xl font-bold text-white bg-astro-gradient">Guardar Código / Beneficio</button>
               </form>
               <div id="admin-coupons-list" class="space-y-2 pt-2"></div>

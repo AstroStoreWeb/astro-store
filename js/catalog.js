@@ -9,6 +9,7 @@ const STORE_STORAGE_KEYS = {
   CATEGORIES: 'astro_store_categories_prod_v1',
   PROJECTS: 'astro_store_projects_prod_v1',
   ACTIVE_JOBS: 'astro_store_active_jobs_prod_v1',
+  MY_JOBS_KEYS: 'astro_store_my_jobs_keys_prod_v1',
   PAYMENT_REPORTS: 'astro_store_payment_reports_prod_v1',
   LAST_CUSTOMER_PAYMENT: 'astro_store_last_customer_payment_prod_v1',
   COUPONS: 'astro_store_coupons_prod_v1',
@@ -150,6 +151,21 @@ function loadActiveJobs() {
   return Array.isArray(data) ? data : [];
 }
 
+function loadMyJobKeys() {
+  const data = loadFromStorage(STORE_STORAGE_KEYS.MY_JOBS_KEYS, []);
+  return Array.isArray(data) ? data : [];
+}
+
+function registerMyJobKey(code, pin) {
+  const cleanCode = String(code || '').trim().toUpperCase();
+  const cleanPin = String(pin || '').trim();
+  if (!cleanCode || !cleanPin) return loadMyJobKeys();
+  const list = loadMyJobKeys().filter(k => String(k.code || '').toUpperCase() !== cleanCode);
+  list.unshift({ code: cleanCode, pin: cleanPin });
+  _baseSaveToStorage(STORE_STORAGE_KEYS.MY_JOBS_KEYS, list.slice(0, 50));
+  return list;
+}
+
 function loadPaymentReports() {
   const data = loadFromStorage(STORE_STORAGE_KEYS.PAYMENT_REPORTS, []);
   return Array.isArray(data) ? data : [];
@@ -240,17 +256,60 @@ class StoreCloudService {
     return false;
   }
 
-  async pullAllFromCloud() {
+  async pullAllFromCloud(options = {}) {
     if (!this.client) return null;
     try {
       const { data, error } = await this.client.from('store_collections').select('key, data');
       if (error || !Array.isArray(data)) return null;
       const map = {};
-      data.forEach(row => { map[row.key] = row.data; });
+      data.forEach(row => {
+        // En vista pública, no exponemos etiquetas privadas si vinieran en catálogo (solo se usan en admin)
+        map[row.key] = row.data;
+      });
       return map;
     } catch (e) {
       return null;
     }
+  }
+
+  async registerPrivateJob(job) {
+    if (!this.client || !job) return false;
+    try {
+      const { data, error } = await this.client.rpc('register_private_job', { p_job: job });
+      if (!error && data === true) return true;
+    } catch (e) {}
+    return false;
+  }
+
+  async pullAuthorizedJobs(queries) {
+    if (!this.client) return { supported: false, jobs: [] };
+    try {
+      const { data, error } = await this.client.rpc('get_authorized_jobs', { p_queries: Array.isArray(queries) ? queries : [] });
+      if (!error && Array.isArray(data)) {
+        return { supported: true, jobs: data };
+      }
+    } catch (e) {}
+    return { supported: false, jobs: [] };
+  }
+
+  async adminPullAllJobs() {
+    if (!this.client) return { supported: false, jobs: [] };
+    try {
+      const { data, error } = await this.client.rpc('admin_get_all_jobs');
+      if (!error && Array.isArray(data)) {
+        return { supported: true, jobs: data };
+      }
+    } catch (e) {}
+    return { supported: false, jobs: [] };
+  }
+
+  async adminSyncAllJobs(jobs) {
+    if (!this.client || !Array.isArray(jobs)) return false;
+    try {
+      const { data, error } = await this.client.rpc('admin_sync_all_jobs', { p_jobs: jobs });
+      if (!error && data === true) return true;
+    } catch (e) {}
+    return false;
   }
 
   async pushCollection(key, value) {
@@ -329,6 +388,15 @@ saveToStorage = function (key, value) {
     STORE_STORAGE_KEYS.SPONSORS
   ];
   if (syncable.includes(key) && window.storeCloud && window.storeCloud.isConnected) {
+    if (key === STORE_STORAGE_KEYS.ACTIVE_JOBS) {
+      const isAdminPage = typeof document !== 'undefined' && document.body?.dataset?.page === 'admin';
+      if (isAdminPage || (typeof STORE_STATE !== 'undefined' && STORE_STATE.isAdminAuthenticated)) {
+        window.storeCloud.adminSyncAllJobs(value).then(ok => {
+          if (!ok) window.storeCloud.pushCollection(key, value);
+        });
+      }
+      return;
+    }
     window.storeCloud.pushCollection(key, value);
   }
 };
