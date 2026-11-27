@@ -3243,35 +3243,172 @@ function copyJobTrackingLink(code, pin) {
   }
 }
 
+let ADMIN_JOB_FILTER = 'todos';
+
+function setAdminJobFilter(filterKey) {
+  ADMIN_JOB_FILTER = filterKey || 'todos';
+  ['todos', 'En progreso', 'pendientes', 'Completado', 'Vencido / Cancelado'].forEach(k => {
+    const btn = document.getElementById(`adm-job-filter-${k}`);
+    if (!btn) return;
+    btn.className = k === ADMIN_JOB_FILTER
+      ? 'px-3 py-1.5 rounded-xl text-xs font-bold bg-sky-600 text-white transition'
+      : 'px-3 py-1.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white transition';
+  });
+  renderAdminJobsList();
+}
+
+function quickChangeAdminJobStatus(id, newStatus) {
+  const j = STORE_STATE.activeJobs.find(x => x.id === id);
+  if (!j) return;
+  j.status = newStatus;
+  if (newStatus === 'Completado') j.progress = 100;
+  saveToStorage(STORE_STORAGE_KEYS.ACTIVE_JOBS, STORE_STATE.activeJobs);
+  renderAdminJobsList();
+  renderAdminNotificationsCenter();
+  showToast(`Trabajo ${j.code} actualizado a "${newStatus}"`);
+}
+
 function renderAdminJobsList() {
   const el = document.getElementById('admin-jobs-list');
+  const statsEl = document.getElementById('admin-jobs-stats');
   if (!el) return;
   const sym = STORE_STATE.config.currencySymbol;
-  if (!STORE_STATE.activeJobs.length) {
-    el.innerHTML = `<p class="text-xs text-slate-400">No hay trabajos activos registrados.</p>`;
+  const usdRate = STORE_STATE.bcvRates?.usd || 0;
+  const allJobs = Array.isArray(STORE_STATE.activeJobs) ? STORE_STATE.activeJobs : [];
+
+  const countTotal = allJobs.length;
+  const countActive = allJobs.filter(j => j.status === 'En progreso').length;
+  const countPending = allJobs.filter(j => j.status === 'Esperando abono' || j.status === 'Por entregar').length;
+  const countDone = allJobs.filter(j => j.status === 'Completado').length;
+  const countCancelled = allJobs.filter(j => j.status === 'Vencido / Cancelado').length;
+
+  if (statsEl) {
+    statsEl.innerHTML = `
+      <button type="button" onclick="setAdminJobFilter('todos')" class="text-left p-3 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-slate-600 transition">
+        <div class="text-[11px] text-slate-400 font-semibold">Total Trabajos</div>
+        <div class="text-xl font-extrabold text-white mt-0.5">${countTotal}</div>
+      </button>
+      <button type="button" onclick="setAdminJobFilter('En progreso')" class="text-left p-3 rounded-2xl bg-slate-900/90 border border-sky-500/30 hover:border-sky-400 transition">
+        <div class="text-[11px] text-sky-300 font-semibold">Activos</div>
+        <div class="text-xl font-extrabold text-sky-400 mt-0.5">${countActive}</div>
+      </button>
+      <button type="button" onclick="setAdminJobFilter('pendientes')" class="text-left p-3 rounded-2xl bg-slate-900/90 border border-amber-500/30 hover:border-amber-400 transition">
+        <div class="text-[11px] text-amber-300 font-semibold">Pendientes</div>
+        <div class="text-xl font-extrabold text-amber-400 mt-0.5">${countPending}</div>
+      </button>
+      <button type="button" onclick="setAdminJobFilter('Completado')" class="text-left p-3 rounded-2xl bg-slate-900/90 border border-emerald-500/30 hover:border-emerald-400 transition">
+        <div class="text-[11px] text-emerald-300 font-semibold">Terminados</div>
+        <div class="text-xl font-extrabold text-emerald-400 mt-0.5">${countDone}</div>
+      </button>
+      <button type="button" onclick="setAdminJobFilter('Vencido / Cancelado')" class="col-span-2 sm:col-span-1 text-left p-3 rounded-2xl bg-slate-900/90 border border-rose-500/30 hover:border-rose-400 transition">
+        <div class="text-[11px] text-rose-300 font-semibold">Cancelados</div>
+        <div class="text-xl font-extrabold text-rose-400 mt-0.5">${countCancelled}</div>
+      </button>
+    `;
+  }
+
+  const searchQ = (document.getElementById('admin-jobs-search')?.value || '').trim().toLowerCase();
+  const filtered = allJobs.filter(j => {
+    const matchesStatus = ADMIN_JOB_FILTER === 'todos'
+      ? true
+      : ADMIN_JOB_FILTER === 'pendientes'
+      ? (j.status === 'Esperando abono' || j.status === 'Por entregar')
+      : j.status === ADMIN_JOB_FILTER;
+
+    const sName = (j.serviceName || j.serviceTitle || '').toLowerCase();
+    const matchesSearch = !searchQ ||
+      (j.code && j.code.toLowerCase().includes(searchQ)) ||
+      (j.clientName && j.clientName.toLowerCase().includes(searchQ)) ||
+      (j.clientPhone && j.clientPhone.toLowerCase().includes(searchQ)) ||
+      (j.accessPin && String(j.accessPin).includes(searchQ)) ||
+      sName.includes(searchQ);
+
+    return matchesStatus && matchesSearch;
+  });
+
+  if (!filtered.length) {
+    el.innerHTML = `<p class="text-xs text-slate-400 py-4 text-center">${allJobs.length ? 'No hay trabajos con ese filtro o búsqueda.' : 'No hay trabajos activos registrados.'}</p>`;
     return;
   }
-  el.innerHTML = STORE_STATE.activeJobs.map(j => {
+
+  el.innerHTML = filtered.map(j => {
     const hasPrice = !j.priceOnRequest && j.totalAmount !== null && j.totalAmount !== undefined && j.totalAmount !== '' && Number(j.totalAmount) > 0;
-    const pinBadge = j.accessPin
-      ? `<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">PIN: ${escapeHtml(j.accessPin)}</span>`
-      : '';
+    const total = hasPrice ? Number(j.totalAmount || 0) : 0;
+    const paid = hasPrice ? Number(j.paidAmount || 0) : 0;
+    const pending = hasPrice ? Math.max(0, total - paid) : 0;
+    const pct = Math.min(100, Math.max(0, Number(j.progress || 0)));
+    const cDate = j.contractDate || j.startDate;
+    const dDate = j.dueDate || j.endDate;
+    const timeInfo = computeJobDeadlineInfo(cDate, dDate, j.status);
+    const deliverables = Array.isArray(j.deliverables) ? j.deliverables : [];
+
+    const statusBadgeCls = j.status === 'Completado'
+      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+      : j.status === 'Esperando abono' || j.status === 'Por entregar'
+      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+      : j.status === 'Vencido / Cancelado'
+      ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+      : 'bg-sky-500/20 text-sky-300 border-sky-500/40';
+
     return `
-      <div class="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div class="min-w-0">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300">${escapeHtml(j.code)}</span>
-            ${pinBadge}
-            <span class="font-bold text-white text-sm">${escapeHtml(j.serviceName)}</span>
-            <span class="text-xs text-emerald-400 font-bold">${j.progress}% · ${escapeHtml(j.status)}</span>
+      <div class="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3">
+        <div class="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
+          <div class="min-w-0 space-y-1.5 flex-1">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="px-2.5 py-0.5 rounded-lg text-[11px] font-mono font-extrabold bg-sky-500/20 text-sky-300 border border-sky-500/30">${escapeHtml(j.code)}</span>
+              ${j.accessPin ? `<span class="px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">PIN: ${escapeHtml(j.accessPin)}</span>` : ''}
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusBadgeCls}">${escapeHtml(j.status)}</span>
+              ${j.isFreeBenefit ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">🎁 Cupón: ${escapeHtml(j.couponCode || 'Beneficio')}</span>` : ''}
+              <span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${timeInfo.badgeCls}">${j.durationDays ? `${j.durationDays} días` : timeInfo.label}</span>
+            </div>
+
+            <div class="font-extrabold text-white text-sm sm:text-base leading-snug">${escapeHtml(j.serviceName || j.serviceTitle || 'Servicio')}</div>
+            <div class="text-xs text-slate-300 flex flex-wrap gap-x-4 gap-y-1">
+              <span><strong class="text-slate-400">Cliente:</strong> ${escapeHtml(j.clientName)}</span>
+              ${j.clientPhone ? `<span><strong class="text-slate-400">Tel:</strong> <span class="font-mono text-emerald-300">${escapeHtml(j.clientPhone)}</span></span>` : ''}
+              <span><strong class="text-slate-400">Modalidad:</strong> ${escapeHtml(j.paymentMode || 'Acordado')}</span>
+            </div>
           </div>
-          <p class="text-xs text-slate-400 mt-0.5">Cliente: ${escapeHtml(j.clientName)} | Contrato: ${formatJobDate(j.contractDate)} | Vence: ${formatJobDate(j.dueDate)} | ${hasPrice ? `Pagado: ${escapeHtml(sym)}${j.paidAmount}/${j.totalAmount}` : 'Por cotizar / Sin monto fijo'}</p>
+
+          <div class="flex flex-wrap items-center gap-1.5 shrink-0">
+            <select onchange="quickChangeAdminJobStatus('${j.id}', this.value)" title="Cambiar estado rápido" class="bg-slate-950 text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border border-slate-700">
+              ${['En progreso', 'Esperando abono', 'Por entregar', 'Completado', 'Vencido / Cancelado'].map(st => `<option value="${st}" ${j.status === st ? 'selected' : ''}>${st}</option>`).join('')}
+            </select>
+            ${j.accessPin ? `<button onclick="copyJobTrackingLink('${escapeHtml(j.code)}', '${escapeHtml(j.accessPin)}')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">Copiar Link</button>` : ''}
+            <button onclick="editActiveJob('${j.id}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-sky-300">Editar</button>
+            <button onclick="deleteActiveJob('${j.id}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-500/15 text-rose-300">Eliminar</button>
+          </div>
         </div>
-        <div class="flex gap-2 shrink-0 flex-wrap">
-          ${j.accessPin ? `<button onclick="copyJobTrackingLink('${escapeHtml(j.code)}', '${escapeHtml(j.accessPin)}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">Copiar Link</button>` : ''}
-          <button onclick="editActiveJob('${j.id}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-sky-300">Editar</button>
-          <button onclick="deleteActiveJob('${j.id}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-500/15 text-rose-300">Eliminar</button>
+
+        <!-- Barra de Progreso + Datos Financieros y Fechas -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-slate-800/80 text-xs">
+          <div class="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-1.5">
+            <div class="flex justify-between items-center">
+              <span class="text-slate-400">Avance:</span>
+              <span class="font-extrabold text-sky-300">${pct}%</span>
+            </div>
+            <div class="w-full h-2 rounded-full bg-slate-900 overflow-hidden">
+              <div class="h-full bg-astro-gradient rounded-full" style="width: ${pct}%"></div>
+            </div>
+            <div class="text-[11px] text-slate-400 pt-0.5">Entregables adjuntos: <strong class="text-white">${deliverables.length}</strong></div>
+          </div>
+
+          <div class="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-1">
+            <div><span class="text-slate-400">Inicio / Contrato:</span> <strong class="text-white">${formatJobDate(cDate)}</strong></div>
+            <div><span class="text-slate-400">Vence / Entrega:</span> <strong class="text-amber-300">${formatJobDate(dDate)}</strong></div>
+            ${j.createdAt ? `<div class="text-[10px] text-slate-500">Registrado: ${new Date(j.createdAt).toLocaleString()}</div>` : ''}
+          </div>
+
+          <div class="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-1">
+            ${hasPrice ? `
+              <div><span class="text-slate-400">Total:</span> <strong class="text-white">${escapeHtml(sym)}${total.toFixed(2)}</strong> <span class="text-[10px] text-slate-400">(${formatBs(total, usdRate)})</span></div>
+              <div><span class="text-slate-400">Pagado:</span> <strong class="text-emerald-400">${escapeHtml(sym)}${paid.toFixed(2)}</strong></div>
+              <div><span class="text-slate-400">Pendiente:</span> <strong class="${pending > 0 ? 'text-amber-300' : 'text-emerald-400'}">${escapeHtml(sym)}${pending.toFixed(2)}</strong></div>
+            ` : `<div class="text-amber-300 font-semibold">${j.isFreeBenefit ? 'Beneficio Gratuito (Canje)' : 'Por cotizar / Sin monto fijo'}</div>`}
+          </div>
         </div>
+
+        ${j.notes ? `<div class="text-[11px] text-slate-300 bg-slate-950/60 border border-slate-800/70 rounded-xl p-2.5"><strong class="text-slate-400">Notas:</strong> ${escapeHtml(j.notes)}</div>` : ''}
       </div>
     `;
   }).join('');

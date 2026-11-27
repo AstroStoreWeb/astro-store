@@ -372,8 +372,27 @@
               </form>
             </div>
 
-            <div class="bento-card p-6 space-y-3">
-              <h3 class="text-sm font-extrabold text-white">Trabajos Activos Registrados</h3>
+            <div class="bento-card p-6 space-y-4 border border-sky-500/20">
+              <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div>
+                  <h3 class="text-base font-extrabold text-white">Panel Completo de Trabajos y Servicios</h3>
+                  <p class="text-xs text-slate-400">Control total de trabajos activos, pendientes, terminados y cancelados con toda su información.</p>
+                </div>
+                <input id="admin-jobs-search" type="text" oninput="renderAdminJobsList()" placeholder="Buscar código, cliente, servicio o PIN..." class="w-full md:w-72 bg-slate-950 text-white text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-sky-500" />
+              </div>
+
+              <!-- KPIs Resumen por Estado -->
+              <div id="admin-jobs-stats" class="grid grid-cols-2 sm:grid-cols-5 gap-2.5"></div>
+
+              <!-- Filtros rápidos por Estado -->
+              <div class="flex flex-wrap gap-1.5 bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800">
+                <button id="adm-job-filter-todos" onclick="setAdminJobFilter('todos')" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-sky-600 text-white transition">Todos</button>
+                <button id="adm-job-filter-En progreso" onclick="setAdminJobFilter('En progreso')" class="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white transition">Activos (En progreso)</button>
+                <button id="adm-job-filter-pendientes" onclick="setAdminJobFilter('pendientes')" class="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white transition">Pendientes (Abono / Entrega)</button>
+                <button id="adm-job-filter-Completado" onclick="setAdminJobFilter('Completado')" class="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white transition">Terminados</button>
+                <button id="adm-job-filter-Vencido / Cancelado" onclick="setAdminJobFilter('Vencido / Cancelado')" class="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white transition">Cancelados / Vencidos</button>
+              </div>
+
               <div id="admin-jobs-list" class="space-y-3"></div>
             </div>
           </div>
