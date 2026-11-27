@@ -56,9 +56,18 @@
           </div>
 
           <form onsubmit="handleAdminLogin(event)" class="space-y-4">
-            <input id="admin-password-input" type="password" required placeholder="Ingresa tu contraseña" class="w-full bg-slate-950 text-white text-sm px-4 py-3 rounded-xl border border-slate-700 focus:outline-none focus:border-amber-400" />
+            <div class="relative">
+              <input id="admin-password-input" type="password" required placeholder="Ingresa tu contraseña" class="w-full bg-slate-950 text-white text-sm pl-4 pr-11 py-3 rounded-xl border border-slate-700 focus:outline-none focus:border-amber-400" />
+              <button type="button" onclick="togglePasswordVisibility('admin-password-input', 'admin-login-eye-icon')" title="Mostrar / ocultar contraseña" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-amber-300 transition p-1">
+                <i id="admin-login-eye-icon" data-lucide="eye" class="w-4 h-4"></i>
+              </button>
+            </div>
             <button type="submit" class="w-full py-3 rounded-xl font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 transition">Entrar al Panel</button>
-            <button type="button" onclick="window.location.href='index.html'" class="w-full py-2 text-xs font-semibold text-slate-400 hover:text-white transition">Volver a la Tienda</button>
+            <div class="flex items-center justify-between gap-2 pt-1">
+              <button type="button" onclick="handleForgotAdminPassword()" class="text-xs font-semibold text-sky-400 hover:text-sky-300 hover:underline transition">Olvidé mi contraseña</button>
+              <button type="button" onclick="window.location.href='index.html'" class="text-xs font-semibold text-slate-400 hover:text-white transition">Volver a la Tienda</button>
+            </div>
+            <div id="admin-forgot-feedback" class="hidden p-3 rounded-xl text-xs"></div>
           </form>
         </section>
 
@@ -716,14 +725,49 @@
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div class="bento-card p-6">
-                <h3 class="text-base font-extrabold text-white mb-3">Cambiar Contraseña</h3>
-                <form onsubmit="handleChangeAdminPassword(event)" class="space-y-3">
-                  <input id="new-admin-pass" type="password" minlength="4" required placeholder="Nueva contraseña (mín. 4 caracteres)" class="w-full bg-slate-950 text-white text-sm px-3.5 py-2.5 rounded-xl border border-slate-700" />
-                  <button type="submit" class="px-5 py-2.5 rounded-xl font-bold text-white bg-sky-600 hover:bg-sky-500 text-xs">Actualizar Contraseña</button>
+              <div class="bento-card p-6 border border-amber-500/30 space-y-4">
+                <div>
+                  <h3 class="text-base font-extrabold text-white">Contraseña y Correo de Recuperación</h3>
+                  <p class="text-xs text-slate-400">Tu contraseña y correo se guardan en la nube (Supabase) para no perderse al recompilar la app o actualizar la web.</p>
+                </div>
+                <form onsubmit="handleChangeAdminPassword(event)" class="space-y-2.5">
+                  <label class="block text-[11px] font-bold text-slate-300">Nueva Contraseña de Administrador</label>
+                  <div class="relative">
+                    <input id="new-admin-pass" type="password" minlength="4" required placeholder="Nueva contraseña (mín. 4 caracteres)" class="w-full bg-slate-950 text-white text-sm pl-3.5 pr-11 py-2.5 rounded-xl border border-slate-700" />
+                    <button type="button" onclick="togglePasswordVisibility('new-admin-pass', 'new-pass-eye-icon')" title="Mostrar / ocultar contraseña" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-amber-300 transition p-1">
+                      <i id="new-pass-eye-icon" data-lucide="eye" class="w-4 h-4"></i>
+                    </button>
+                  </div>
+                  <button type="submit" class="px-5 py-2 rounded-xl font-bold text-white bg-sky-600 hover:bg-sky-500 text-xs">Actualizar Contraseña</button>
+                </form>
+
+                <form onsubmit="handleSaveRecoveryEmail(event)" class="space-y-2.5 pt-3 border-t border-slate-800">
+                  <label class="block text-[11px] font-bold text-slate-300">Correo Personal para Recuperar Contraseña</label>
+                  <div class="flex gap-2">
+                    <input id="sec-admin-email" type="email" required placeholder="tu-correo@gmail.com" class="flex-1 bg-slate-950 text-white text-xs px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                    <button type="submit" class="px-4 py-2 rounded-xl font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 text-xs shrink-0">Guardar Correo</button>
+                  </div>
                 </form>
               </div>
-              <div class="bento-card p-6 space-y-3">
+
+              <!-- Dispositivos Seguros -->
+              <div class="bento-card p-6 border border-sky-500/30 space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                  <div>
+                    <h3 class="text-base font-extrabold text-white">Dispositivos Seguros</h3>
+                    <p class="text-xs text-slate-400">Marca este teléfono o PC como dispositivo seguro para entrar al Panel Admin sin escribir la contraseña cada vez.</p>
+                  </div>
+                  <span id="trusted-device-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300 shrink-0">No verificado</span>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-2">
+                  <input id="trusted-device-label" type="text" placeholder="Nombre (ej. Mi Teléfono Android)" class="flex-1 bg-slate-950 text-white text-xs px-3.5 py-2.5 rounded-xl border border-slate-700" />
+                  <button type="button" onclick="trustCurrentDevice()" class="px-4 py-2.5 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-500 text-xs whitespace-nowrap">Marcar como Seguro</button>
+                </div>
+                <div id="admin-trusted-devices-list" class="space-y-2 pt-1 max-h-48 overflow-y-auto hover-scroll"></div>
+              </div>
+            </div>
+
+            <div class="bento-card p-6 space-y-3">
                 <h3 class="text-base font-extrabold text-white">Respaldo Total (JSON)</h3>
                 <p class="text-xs text-slate-400">Exporta o importa catálogo, planes por producto, cuentas de cobro y configuración.</p>
                 <div class="flex flex-wrap gap-3">
@@ -733,7 +777,6 @@
                     <input type="file" accept=".json" onchange="importStoreBackup(event)" class="hidden" />
                   </label>
                 </div>
-              </div>
             </div>
           </div>
         </section>

@@ -205,7 +205,8 @@ function initStore() {
   STORE_STATE.paymentAccounts = loadPaymentAccounts();
   STORE_STATE.paymentPlans = loadPaymentPlans();
   STORE_STATE.bcvRates = loadCachedBcvRates();
-  STORE_STATE.isAdminAuthenticated = sessionStorage.getItem(STORE_STORAGE_KEYS.ADMIN_AUTH) === 'true';
+  STORE_STATE.isAdminAuthenticated = sessionStorage.getItem(STORE_STORAGE_KEYS.ADMIN_AUTH) === 'true'
+    || (isCurrentDeviceTrusted() && !sessionStorage.getItem('astro_admin_manual_logout'));
   loadCartFromStorage();
   setupMobileKeyboardListeners();
 
@@ -1750,18 +1751,198 @@ function switchAdminTab(tabName, shouldResetScroll = true) {
     renderAdminNotificationsCenter();
     renderAdminCouponsList();
   }
+  if (tabName === 'seguridad') {
+    renderAdminCloudSettings();
+    renderAdminTrustedDevices();
+  }
   if (shouldResetScroll) resetScrollArea();
   if (window.lucide) window.lucide.createIcons();
+}
+
+function togglePasswordVisibility(inputId, iconId) {
+  const input = document.getElementById(inputId);
+  const icon = document.getElementById(iconId);
+  if (!input) return;
+  const isPass = input.type === 'password';
+  input.type = isPass ? 'text' : 'password';
+  if (icon) {
+    icon.setAttribute('data-lucide', isPass ? 'eye-off' : 'eye');
+    if (window.lucide) window.lucide.createIcons();
+  }
+}
+
+function getOrCreateAdminDeviceId() {
+  const key = 'astro_store_device_id_v1';
+  let id = localStorage.getItem(key);
+  if (!id) {
+    id = 'dev-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
+function getDefaultDeviceLabel() {
+  if (window.AndroidAdminBridge) return 'App Android (Panel Admin)';
+  const ua = navigator.userAgent || '';
+  if (/Android/i.test(ua)) return 'Móvil Android (Navegador)';
+  if (/iPhone|iPad/i.test(ua)) return 'iPhone / iPad';
+  if (/Windows/i.test(ua)) return 'PC Windows';
+  return 'Navegador Web';
+}
+
+function isCurrentDeviceTrusted() {
+  const list = Array.isArray(STORE_STATE.config?.trustedDevices) ? STORE_STATE.config.trustedDevices : [];
+  const myId = getOrCreateAdminDeviceId();
+  return list.some(d => d && d.id === myId);
+}
+
+function getEffectiveAdminPassword() {
+  const cloudPass = STORE_STATE.config && typeof STORE_STATE.config.adminPassword === 'string'
+    ? STORE_STATE.config.adminPassword.trim()
+    : '';
+  return cloudPass || localStorage.getItem(STORE_STORAGE_KEYS.ADMIN_PASS) || 'admin123';
+}
+
+function renderAdminTrustedDevices() {
+  const listEl = document.getElementById('admin-trusted-devices-list');
+  const badgeEl = document.getElementById('trusted-device-badge');
+  const labelInput = document.getElementById('trusted-device-label');
+  const secEmailEl = document.getElementById('sec-admin-email');
+  if (secEmailEl && document.activeElement !== secEmailEl) {
+    secEmailEl.value = STORE_STATE.config?.adminEmail || '';
+  }
+  if (labelInput && !labelInput.value) {
+    labelInput.placeholder = `Nombre (ej. ${getDefaultDeviceLabel()})`;
+  }
+
+  const myId = getOrCreateAdminDeviceId();
+  const list = Array.isArray(STORE_STATE.config?.trustedDevices) ? STORE_STATE.config.trustedDevices : [];
+  const trusted = list.some(d => d && d.id === myId);
+
+  if (badgeEl) {
+    badgeEl.textContent = trusted ? 'Dispositivo Seguro Activo' : 'No verificado';
+    badgeEl.className = trusted
+      ? 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0'
+      : 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300 shrink-0';
+  }
+
+  if (!listEl) return;
+  if (!list.length) {
+    listEl.innerHTML = `<p class="text-[11px] text-slate-400">No hay dispositivos seguros guardados todavía.</p>`;
+    return;
+  }
+
+  listEl.innerHTML = list.map(d => {
+    const isMe = d.id === myId;
+    return `
+      <div class="p-2.5 rounded-xl bg-slate-950 border ${isMe ? 'border-emerald-500/40' : 'border-slate-800'} flex items-center justify-between gap-2 text-xs">
+        <div class="min-w-0">
+          <div class="font-bold text-white truncate">${escapeHtml(d.label || 'Dispositivo')} ${isMe ? '<span class="text-[10px] text-emerald-400">(Este equipo)</span>' : ''}</div>
+          <div class="text-[10px] text-slate-400">Agregado: ${escapeHtml(d.addedAt ? new Date(d.addedAt).toLocaleDateString() : '')}</div>
+        </div>
+        <button type="button" onclick="revokeTrustedDevice('${escapeHtml(d.id)}')" class="px-2.5 py-1 rounded-lg bg-rose-500/15 text-rose-300 text-[11px] font-bold shrink-0">Revocar</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function trustCurrentDevice() {
+  const myId = getOrCreateAdminDeviceId();
+  const label = (document.getElementById('trusted-device-label')?.value || '').trim() || getDefaultDeviceLabel();
+  const list = Array.isArray(STORE_STATE.config?.trustedDevices) ? [...STORE_STATE.config.trustedDevices] : [];
+  const filtered = list.filter(d => d && d.id !== myId);
+  filtered.unshift({ id: myId, label, addedAt: new Date().toISOString() });
+  STORE_STATE.config = { ...STORE_STATE.config, trustedDevices: filtered };
+  saveToStorage(STORE_STORAGE_KEYS.CONFIG, STORE_STATE.config);
+  if (document.getElementById('trusted-device-label')) document.getElementById('trusted-device-label').value = '';
+  renderAdminTrustedDevices();
+  showToast('Este dispositivo ahora es Seguro (acceso automático activado)');
+}
+
+function revokeTrustedDevice(deviceId) {
+  const list = Array.isArray(STORE_STATE.config?.trustedDevices) ? STORE_STATE.config.trustedDevices : [];
+  STORE_STATE.config = { ...STORE_STATE.config, trustedDevices: list.filter(d => d && d.id !== deviceId) };
+  saveToStorage(STORE_STORAGE_KEYS.CONFIG, STORE_STATE.config);
+  renderAdminTrustedDevices();
+  showToast('Dispositivo revocado');
+}
+
+function handleSaveRecoveryEmail(e) {
+  e.preventDefault();
+  const email = (document.getElementById('sec-admin-email')?.value || '').trim();
+  if (!email) return;
+  STORE_STATE.config = { ...STORE_STATE.config, adminEmail: email };
+  saveToStorage(STORE_STORAGE_KEYS.CONFIG, STORE_STATE.config);
+  const cfgEmail = document.getElementById('cfg-admin-email');
+  if (cfgEmail) cfgEmail.value = email;
+  showToast('Correo de recuperación guardado en la nube');
+}
+
+async function handleForgotAdminPassword() {
+  const box = document.getElementById('admin-forgot-feedback');
+  if (window.storeCloud && window.storeCloud.isConnected) {
+    await syncAllFromSupabase(false, { preserveScroll: true, preserveForms: true });
+  }
+  const email = (STORE_STATE.config?.adminEmail || '').trim();
+  const pass = getEffectiveAdminPassword();
+  if (!email) {
+    if (box) {
+      box.className = 'p-3 rounded-xl text-xs bg-amber-500/15 border border-amber-500/30 text-amber-200';
+      box.innerHTML = 'No hay ningún correo configurado en el Panel Admin (Seguridad / Tienda). Si nunca cambiaste la clave, la contraseña por defecto es <strong class="text-white font-mono">admin123</strong>.';
+      box.classList.remove('hidden');
+    }
+    showToast('Configura tu correo personal dentro del Panel Admin', 'error');
+    return;
+  }
+
+  if (box) {
+    box.className = 'p-3 rounded-xl text-xs bg-sky-500/15 border border-sky-500/30 text-sky-200';
+    box.textContent = `Enviando contraseña a ${email}...`;
+    box.classList.remove('hidden');
+  }
+
+  try {
+    const res = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(email)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        _subject: `Recuperación de Contraseña — ${STORE_STATE.config?.brandName || 'Creative Store'}`,
+        _template: 'table',
+        _captcha: 'false',
+        Panel: STORE_STATE.config?.brandName || 'Creative Store Admin',
+        Contraseña_Actual: pass,
+        Fecha: new Date().toLocaleString()
+      })
+    });
+    const json = await res.json().catch(() => ({}));
+    if (res.ok && (json.success === 'true' || json.success === true || !json.error)) {
+      if (box) {
+        box.className = 'p-3 rounded-xl text-xs bg-emerald-500/15 border border-emerald-500/30 text-emerald-200';
+        box.innerHTML = `Contraseña enviada a <strong>${escapeHtml(email)}</strong>. Revisa tu bandeja de entrada o Spam. <span class="text-slate-300">(Si es la primera vez que usas este correo, confirma el enlace de activación de FormSubmit que te llegará).</span>`;
+      }
+      showToast(`Correo enviado a ${email}`);
+      return;
+    }
+  } catch (err) {}
+
+  if (box) {
+    const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent('Recuperación Panel Admin')}&body=${encodeURIComponent('Tu contraseña actual del Panel Administrativo es: ' + pass)}`;
+    box.className = 'p-3 rounded-xl text-xs bg-amber-500/15 border border-amber-500/30 text-amber-200';
+    box.innerHTML = `No se pudo enviar automáticamente desde este entorno. <a href="${mailtoUrl}" class="underline font-bold text-white">Haz clic aquí para enviártela por tu app de correo</a>.`;
+  }
 }
 
 function handleAdminLogin(e) {
   e.preventDefault();
   const input = document.getElementById('admin-password-input').value;
-  const savedPass = localStorage.getItem(STORE_STORAGE_KEYS.ADMIN_PASS) || 'admin123';
+  const savedPass = getEffectiveAdminPassword();
   if (input === savedPass) {
+    sessionStorage.removeItem('astro_admin_manual_logout');
     STORE_STATE.isAdminAuthenticated = true;
     sessionStorage.setItem(STORE_STORAGE_KEYS.ADMIN_AUTH, 'true');
     document.getElementById('admin-password-input').value = '';
+    const box = document.getElementById('admin-forgot-feedback');
+    if (box) box.classList.add('hidden');
     renderAdminView();
     showToast('Bienvenido al Panel Administrativo');
   } else {
@@ -1770,6 +1951,7 @@ function handleAdminLogin(e) {
 }
 
 function logoutAdmin() {
+  sessionStorage.setItem('astro_admin_manual_logout', '1');
   STORE_STATE.isAdminAuthenticated = false;
   sessionStorage.removeItem(STORE_STORAGE_KEYS.ADMIN_AUTH);
   switchView('public');
@@ -2376,8 +2558,10 @@ function handleChangeAdminPassword(e) {
   const p = document.getElementById('new-admin-pass').value;
   if (p.length < 4) return;
   localStorage.setItem(STORE_STORAGE_KEYS.ADMIN_PASS, p);
+  STORE_STATE.config = { ...STORE_STATE.config, adminPassword: p };
+  saveToStorage(STORE_STORAGE_KEYS.CONFIG, STORE_STATE.config);
   document.getElementById('new-admin-pass').value = '';
-  showToast('Contraseña actualizada');
+  showToast('Contraseña actualizada y guardada en la nube');
 }
 
 function exportStoreBackup() {
@@ -5161,6 +5345,7 @@ function refreshUIWithoutDisruptingUser(onlyPaymentCheck = false) {
     renderAdminCouponsList();
     renderAdminSponsorsList();
     renderAdminNotificationsCenter();
+    renderAdminTrustedDevices();
     if (!hasFormInputActivityIn('admin-panel-tienda')) {
       const c = STORE_STATE.config;
       const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
@@ -5190,7 +5375,16 @@ async function syncAllFromSupabase(showFeedback = false, options = {}) {
     }
   };
 
-  applyKey(STORE_STORAGE_KEYS.CONFIG, v => { STORE_STATE.config = loadStoreConfig(); });
+  applyKey(STORE_STORAGE_KEYS.CONFIG, v => {
+    STORE_STATE.config = loadStoreConfig();
+    if (STORE_STATE.config.adminPassword) {
+      localStorage.setItem(STORE_STORAGE_KEYS.ADMIN_PASS, STORE_STATE.config.adminPassword);
+    }
+    if (!STORE_STATE.isAdminAuthenticated && isCurrentDeviceTrusted() && !sessionStorage.getItem('astro_admin_manual_logout')) {
+      STORE_STATE.isAdminAuthenticated = true;
+      sessionStorage.setItem(STORE_STORAGE_KEYS.ADMIN_AUTH, 'true');
+    }
+  });
   applyKey(STORE_STORAGE_KEYS.CATALOG, v => { if (Array.isArray(v)) STORE_STATE.catalog = loadCatalogItems(); });
   applyKey(STORE_STORAGE_KEYS.SALES_CATALOGS, v => { if (Array.isArray(v)) STORE_STATE.salesCatalogs = v; });
   applyKey(STORE_STORAGE_KEYS.CATEGORIES, v => { if (Array.isArray(v)) STORE_STATE.categories = v; });
