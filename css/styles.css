@@ -1099,3 +1099,34 @@ body.keyboard-open .mobile-pill-nav {
 .mobile-pill-center:active {
   transform: scale(0.92);
 }
+
+/* ==========================================================================
+   AJUSTES RESPONSIVOS MÓVILES (SIN CORTES NI DESBORDES)
+   ========================================================================== */
+input, select, textarea {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.bento-card {
+  max-width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 1023px) {
+  html, body {
+    overflow-x: clip !important;
+  }
+  #main-scroll-area {
+    padding-bottom: 8.5rem !important;
+  }
+  .bento-card {
+    padding: 1rem !important;
+  }
+  .mobile-pill-nav {
+    bottom: 10px;
+    max-width: calc(100vw - 24px);
+  }
+}
+

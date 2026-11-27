@@ -552,10 +552,7 @@ function renderHomeModule() {
       spnGrid.innerHTML = `<div class="col-span-full text-center text-slate-400 text-xs py-5">No hay registros en esta clasificación.</div>`;
     } else {
       spnGrid.innerHTML = filteredSponsors.map(s => {
-        const modeLabel = formatPurchaseModeLabel(s.purchaseMode, s.purchaseDetail);
-        const priced = hasFixedPrice(s);
         const imgSrc = s.imageUrl ? normalizeExternalImageUrl(s.imageUrl) : '';
-        const showQuoteBtn = s.allowQuote !== false || !priced || (s.purchaseMode && s.purchaseMode !== 'mencion');
         const clsMeta = getSponsorClassificationMeta(s.classification || 'socio');
 
         return `
@@ -571,35 +568,19 @@ function renderHomeModule() {
                   <div class="flex flex-wrap items-center gap-1.5">
                     <span class="px-2 py-0.5 rounded-md text-[10px] font-bold border ${clsMeta.badgeCls}">${escapeHtml(clsMeta.label)}</span>
                     <span class="text-[10px] font-bold uppercase tracking-wider text-amber-300">${escapeHtml(s.role)}</span>
-                    ${modeLabel ? `<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">${escapeHtml(modeLabel)}</span>` : ''}
                   </div>
                   <div class="font-bold text-white text-sm truncate mt-1">${escapeHtml(s.name)}</div>
                 </div>
               </div>
 
               <p class="text-xs text-slate-300 leading-snug">${escapeHtml(s.description)}</p>
-
-              ${priced ? `
-                <div class="flex flex-wrap items-baseline gap-2 pt-0.5">
-                  <span class="text-sm font-extrabold text-emerald-400">${escapeHtml(sym)}${Number(s.price).toFixed(2)}</span>
-                  <span class="text-[11px] font-semibold text-sky-300">&approx; ${formatBs(s.price, rates?.usd)}</span>
-                </div>
-              ` : (s.purchaseMode && s.purchaseMode !== 'mencion' ? `
-                <div class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-[11px] font-bold text-amber-300">
-                  <span>Precio a consultar / Cotizar</span>
-                </div>
-              ` : '')}
             </div>
 
-            <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/80">
-              ${s.url ? `<a href="${escapeHtml(s.url)}" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-bold transition">Visitar</a>` : ''}
-              ${showQuoteBtn ? `
-                <button type="button" onclick="openQuoteModal('sponsor', '${s.id}')" class="flex-1 px-3 py-1.5 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-slate-950 text-xs font-extrabold transition flex items-center justify-center gap-1.5">
-                  <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>
-                  <span>${priced ? 'Pedir Info / Adquirir' : 'Pedir Info / Cotizar'}</span>
-                </button>
-              ` : ''}
-            </div>
+            ${s.url ? `
+              <div class="flex items-center pt-2 border-t border-slate-800/80">
+                <a href="${escapeHtml(s.url)}" target="_blank" rel="noopener" class="w-full px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-bold transition text-center">Visitar Sitio Web</a>
+              </div>
+            ` : ''}
           </div>
         `;
       }).join('');
@@ -1627,8 +1608,8 @@ function switchAdminTab(tabName, shouldResetScroll = true) {
     if (panel) panel.classList.toggle('hidden', t !== tabName);
     if (mobBtn) {
       mobBtn.className = t === tabName
-        ? 'px-3.5 py-2 rounded-xl text-xs font-bold bg-sky-600 text-white'
-        : 'px-3.5 py-2 rounded-xl text-xs font-medium text-slate-300';
+        ? 'px-2 py-2 rounded-xl text-xs font-bold bg-sky-600 text-white text-center truncate'
+        : 'px-2 py-2 rounded-xl text-xs font-medium text-slate-300 text-center truncate';
     }
   });
 
@@ -4104,24 +4085,21 @@ function renderAdminSponsorsList() {
     el.innerHTML = `<p class="text-xs text-slate-400">No hay divisiones, socios ni patrocinios registrados.</p>`;
     return;
   }
-  const sym = STORE_STATE.config.currencySymbol;
   el.innerHTML = STORE_STATE.sponsors.map(s => {
-    const priced = hasFixedPrice(s);
-    const modeLabel = formatPurchaseModeLabel(s.purchaseMode, s.purchaseDetail);
     const clsMeta = getSponsorClassificationMeta(s.classification || 'socio');
+    const imgSrc = s.imageUrl ? normalizeExternalImageUrl(s.imageUrl) : '';
     return `
       <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-        <div class="min-w-0 space-y-0.5">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${clsMeta.badgeCls}">${escapeHtml(clsMeta.label)}</span>
-            <span class="font-bold text-white">${escapeHtml(s.name)}</span>
-            <span class="text-amber-300 font-semibold">${escapeHtml(s.role)}</span>
-            ${priced
-              ? `<span class="text-emerald-400 font-extrabold">${escapeHtml(sym)}${Number(s.price).toFixed(2)}</span>`
-              : `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">Sin precio / Cotizar</span>`}
-            ${modeLabel ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-200 border border-purple-500/30">${escapeHtml(modeLabel)}</span>` : ''}
+        <div class="flex items-center gap-2.5 min-w-0">
+          ${imgSrc ? `<img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(s.name)}" class="w-9 h-9 rounded-lg object-cover border border-slate-700 shrink-0" />` : ''}
+          <div class="min-w-0 space-y-0.5">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${clsMeta.badgeCls}">${escapeHtml(clsMeta.label)}</span>
+              <span class="font-bold text-white">${escapeHtml(s.name)}</span>
+              <span class="text-amber-300 font-semibold">${escapeHtml(s.role)}</span>
+            </div>
+            <div class="text-slate-400 truncate">${escapeHtml(s.description)}${s.url ? ` · <span class="text-sky-400">${escapeHtml(s.url)}</span>` : ''}</div>
           </div>
-          <div class="text-slate-400 truncate">${escapeHtml(s.description)}</div>
         </div>
         <div class="flex gap-2 shrink-0">
           <button type="button" onclick="editSponsor('${s.id}')" class="px-2.5 py-1 rounded-lg font-semibold bg-slate-800 text-sky-300">Editar</button>
@@ -4132,36 +4110,39 @@ function renderAdminSponsorsList() {
   }).join('');
 }
 
+async function handleSponsorLogoFileUpload(event) {
+  const file = event.target?.files?.[0];
+  if (!file) return;
+  try {
+    const compressed = await compressImageFile(file, 500, 0.85);
+    const finalUrl = window.storeCloud
+      ? await window.storeCloud.uploadImageToConfiguredCloud(file, compressed)
+      : compressed;
+    const input = document.getElementById('spn-image-url');
+    if (input) input.value = finalUrl;
+    showToast('Logo cargado correctamente', 'success');
+  } catch (e) {
+    showToast('No se pudo cargar el logo', 'error');
+  } finally {
+    event.target.value = '';
+  }
+}
+
 function handleSaveSponsor(e) {
   e.preventDefault();
   const classification = document.getElementById('spn-classification')?.value || 'socio';
   const name = document.getElementById('spn-name').value.trim();
   const role = document.getElementById('spn-role').value.trim();
   const url = document.getElementById('spn-url').value.trim();
-  const whatsapp = document.getElementById('spn-whatsapp')?.value.trim() || '';
   const description = document.getElementById('spn-desc').value.trim();
   const imageUrl = document.getElementById('spn-image-url')?.value.trim() || '';
-  const purchaseMode = document.getElementById('spn-purchase-mode')?.value || 'mencion';
-  const purchaseDetail = document.getElementById('spn-purchase-detail')?.value.trim() || '';
-  const allowQuote = document.getElementById('spn-allow-quote') ? Boolean(document.getElementById('spn-allow-quote').checked) : true;
-
-  const rawPrice = document.getElementById('spn-price')?.value.trim() || '';
-  const priceOnRequestCb = document.getElementById('spn-price-on-request');
-  const priceOnRequest = Boolean((priceOnRequestCb && priceOnRequestCb.checked) || rawPrice === '');
-  const parsedPrice = priceOnRequest ? null : (Number.isFinite(parseFloat(rawPrice)) ? parseFloat(rawPrice) : null);
 
   const data = {
     classification,
     name,
     role,
     url,
-    whatsapp,
     imageUrl,
-    price: parsedPrice,
-    priceOnRequest: priceOnRequest || parsedPrice === null,
-    purchaseMode,
-    purchaseDetail,
-    allowQuote,
     description
   };
 
@@ -4190,24 +4171,8 @@ function editSponsor(id) {
   document.getElementById('spn-name').value = s.name || '';
   document.getElementById('spn-role').value = s.role || '';
   document.getElementById('spn-url').value = s.url || '';
-  if (document.getElementById('spn-whatsapp')) document.getElementById('spn-whatsapp').value = s.whatsapp || '';
   if (document.getElementById('spn-image-url')) document.getElementById('spn-image-url').value = s.imageUrl || '';
   document.getElementById('spn-desc').value = s.description || '';
-
-  const priced = hasFixedPrice(s);
-  const priceInput = document.getElementById('spn-price');
-  const priceCb = document.getElementById('spn-price-on-request');
-  if (priceInput) {
-    priceInput.value = priced ? s.price : '';
-    priceInput.disabled = !priced;
-    priceInput.classList.toggle('opacity-50', !priced);
-  }
-  if (priceCb) priceCb.checked = !priced;
-
-  if (document.getElementById('spn-purchase-mode')) document.getElementById('spn-purchase-mode').value = s.purchaseMode || 'mencion';
-  if (document.getElementById('spn-purchase-detail')) document.getElementById('spn-purchase-detail').value = s.purchaseDetail || '';
-  if (document.getElementById('spn-allow-quote')) document.getElementById('spn-allow-quote').checked = s.allowQuote !== false;
-  updatePurchaseDetailPlaceholder('spn');
   scrollToCardForm('admin-spn-form-card');
 }
 
@@ -4217,17 +4182,11 @@ function cancelEditSponsor() {
   const cancelBtn = document.getElementById('admin-spn-cancel-edit');
   if (titleEl) titleEl.textContent = '3. Ecosistema, Divisiones y Alianzas';
   if (cancelBtn) cancelBtn.classList.add('hidden');
-  ['spn-name', 'spn-role', 'spn-url', 'spn-whatsapp', 'spn-price', 'spn-purchase-detail', 'spn-image-url', 'spn-desc'].forEach(id => {
+  ['spn-name', 'spn-role', 'spn-url', 'spn-image-url', 'spn-desc'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
   if (document.getElementById('spn-classification')) document.getElementById('spn-classification').value = 'division';
-  const priceInput = document.getElementById('spn-price');
-  const priceCb = document.getElementById('spn-price-on-request');
-  if (priceInput) { priceInput.disabled = false; priceInput.classList.remove('opacity-50'); }
-  if (priceCb) priceCb.checked = false;
-  if (document.getElementById('spn-purchase-mode')) document.getElementById('spn-purchase-mode').value = 'mencion';
-  if (document.getElementById('spn-allow-quote')) document.getElementById('spn-allow-quote').checked = true;
 }
 
 function deleteSponsor(id) {
